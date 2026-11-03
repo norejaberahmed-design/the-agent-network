@@ -52,6 +52,13 @@ jobs:
         run: npm run db:generate
       - name: Prepare isolated CI database
         run: npx prisma db push --skip-generate
+      - name: Verify migration chain on a fresh PostgreSQL database
+        env:
+          PGPASSWORD: tan_local_only
+        run: |
+          createdb -h localhost -p 5432 -U tan the_agent_network_migrations
+          DATABASE_URL=postgresql://tan:tan_local_only@localhost:5432/the_agent_network_migrations?schema=public npx prisma migrate deploy
+          DATABASE_URL=postgresql://tan:tan_local_only@localhost:5432/the_agent_network_migrations?schema=public npx prisma migrate status
       - name: Lint
         run: npm run lint
       - name: Typecheck

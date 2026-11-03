@@ -66,6 +66,16 @@ enum ApprovalStatus {
   CANCELLED
 }
 
+enum AgentRunStatus {
+  QUEUED
+  PLANNING
+  WAITING_APPROVAL
+  COMPLETED
+  FAILED
+  CANCELLED
+  DEAD_LETTER
+}
+
 model User {
   id            String       @id @default(cuid())
   name          String
@@ -83,6 +93,7 @@ model User {
   auditEvents   AuditEvent[] @relation("AuditActor")
   approvalRequestsCreated ActionApproval[] @relation("ApprovalRequester")
   approvalRequestsDecided ActionApproval[] @relation("ApprovalApprover")
+  requestedAgentRuns AgentRun[] @relation("AgentRunRequester")
 }
 
 model Session {
@@ -198,6 +209,7 @@ model Agent {
   grants            PermissionGrant[]
   auditEvents       AuditEvent[]
   actionApprovals    ActionApproval[]
+  runs               AgentRun[]
 
   @@index([ownerType, userOwnerId])
   @@index([ownerType, organizationOwnerId])
@@ -243,6 +255,7 @@ model PermissionGrant {
   expiresAt      DateTime
   maxUses        Int?
   uses           Int         @default(0)
+  reservedUses   Int         @default(0)
   version        Int         @default(1)
   status         GrantStatus @default(ACTIVE)
   createdAt      DateTime    @default(now())
@@ -289,6 +302,42 @@ model ActionApproval {
   @@index([requesterUserId, status])
   @@index([approverUserId, status])
   @@index([status, expiresAt])
+}
+
+
+model AgentRun {
+  id                String         @id @default(cuid())
+  agentId           String
+  requesterUserId   String
+  ownerType         AgentOwnerType
+  ownerId           String
+  task              String         @db.VarChar(4000)
+  purpose           String         @db.VarChar(300)
+  target            String         @db.VarChar(128)
+  authorizedActions String[]
+  grantIds          String[]       @default([])
+  requestDigest     String         @db.VarChar(64)
+  idempotencyKey    String         @db.VarChar(128)
+  status            AgentRunStatus @default(QUEUED)
+  attemptCount      Int            @default(0)
+  maxAttempts       Int            @default(3)
+  availableAt       DateTime       @default(now())
+  claimedAt         DateTime?
+  leaseExpiresAt    DateTime?
+  workerId          String?
+  startedAt         DateTime?
+  completedAt       DateTime?
+  cancelledAt       DateTime?
+  errorCode         String?        @db.VarChar(64)
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  agent             Agent          @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  requester         User           @relation("AgentRunRequester", fields: [requesterUserId], references: [id], onDelete: Restrict)
+
+  @@unique([requesterUserId, idempotencyKey])
+  @@index([status, availableAt])
+  @@index([agentId, createdAt])
+  @@index([ownerType, ownerId, createdAt])
 }
 
 model AuditEvent {
