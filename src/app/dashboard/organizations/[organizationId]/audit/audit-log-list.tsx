@@ -27,6 +27,11 @@ const actionLabels: Record<string, string> = {
   "permission_grant.revoked": "إلغاء صلاحية",
   "invitation.created": "إنشاء دعوة",
   "invitation.redeemed": "قبول دعوة",
+  "action_approval.requested": "طلب موافقة على إجراء",
+  "action_approval.approved": "الموافقة على إجراء",
+  "action_approval.rejected": "رفض إجراء",
+  "action_approval.expired": "انتهاء طلب موافقة",
+  "action_approval.cancelled": "إلغاء طلب موافقة",
 };
 
 const metadataLabels: Record<string, string> = {
@@ -50,6 +55,11 @@ const metadataLabels: Record<string, string> = {
   invitationCount: "عدد الدعوات الملغاة",
   grantCount: "عدد الصلاحيات الملغاة",
   reason: "السبب",
+  actionType: "نوع الإجراء",
+  recipient: "المستلم",
+  payloadDigest: "بصمة الحمولة",
+  requestedDataScope: "نطاق البيانات المطلوب",
+  decision: "القرار",
   role: "الدور",
 };
 

@@ -26,9 +26,14 @@ const allowedKeysByAction: Record<string, string[]> = {
   "organization.member.grants_revoked": ["grantCount", "reason"],
   "invitation.created": ["role", "expiresAt"],
   "invitation.redeemed": ["role"],
+  "action_approval.requested": ["actionType", "recipient", "payloadDigest", "requestedDataScope", "expiresAt"],
+  "action_approval.approved": ["actionType", "recipient", "payloadDigest", "requestedDataScope", "decision"],
+  "action_approval.rejected": ["actionType", "recipient", "payloadDigest", "requestedDataScope", "decision"],
+  "action_approval.expired": ["actionType", "recipient", "payloadDigest", "reason"],
+  "action_approval.cancelled": ["actionType", "recipient", "payloadDigest", "reason"],
 };
 
-const arrayKeys = new Set(["actionScope", "targetScope", "dataScope"]);
+const arrayKeys = new Set(["actionScope", "targetScope", "dataScope", "requestedDataScope"]);
 
 export function projectSafeAuditMetadata(
   action: string,

@@ -7,6 +7,7 @@ import { getAgentAccess } from "@/modules/agents/access";
 import { GrantManager } from "./grant-manager";
 import { FieldPolicyManager } from "./field-policy-manager";
 import { AgentLifecycleManager } from "./lifecycle-manager";
+import { ActionApprovalManager } from "./action-approval-manager";
 
 export const dynamic = "force-dynamic";
 
@@ -90,16 +91,39 @@ export default async function AgentDetailPage({
         />
       ) : null}
       {access.canViewGrants ? (
-        <GrantManager
-          agentId={agentId}
-          canManage={access.canManagePermissions}
-          initialGrants={grants.map((grant) => ({
-            ...grant,
-            expiresAt: grant.expiresAt.toISOString(),
-            createdAt: grant.createdAt.toISOString(),
-            revokedAt: grant.revokedAt?.toISOString() ?? null,
-          }))}
-        />
+        <>
+          <GrantManager
+            agentId={agentId}
+            canManage={access.canManagePermissions}
+            initialGrants={grants.map((grant) => ({
+              ...grant,
+              expiresAt: grant.expiresAt.toISOString(),
+              createdAt: grant.createdAt.toISOString(),
+              revokedAt: grant.revokedAt?.toISOString() ?? null,
+            }))}
+          />
+          {access.ownerType === "ORGANIZATION" && access.canManagePermissions ? <ActionApprovalManager
+            agentId={agentId}
+            currentUserId={session.user.id}
+            canRequest={access.canManagePermissions}
+            canApprove={access.canManageFieldPolicies}
+            grants={grants
+              .filter((grant) =>
+                grant.status === "ACTIVE" &&
+                grant.revokedAt === null &&
+                grant.expiresAt > new Date() &&
+                (grant.maxUses === null || grant.uses < grant.maxUses),
+              )
+              .map((grant) => ({
+                id: grant.id,
+                actionScope: grant.actionScope,
+                targetScope: grant.targetScope,
+                dataScope: grant.dataScope,
+                status: grant.status,
+                expiresAt: grant.expiresAt.toISOString(),
+              }))}
+          /> : null}
+        </>
       ) : null}
     </main>
   );

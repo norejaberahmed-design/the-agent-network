@@ -21,10 +21,12 @@ This matrix describes the proposed stacked pull requests for the current foundat
 | Local agent discovery | PR #15 | Authenticated directory; only active, discoverable agents and policy-approved fields |
 | Agent lifecycle publishing | PR #16 | Owner/admin-only activation, public-profile prerequisite, audit event, and terminal revoked state |
 | Organization audit log | PR #17 | Owner/admin/auditor read access and action-specific metadata redaction |
+| Exact-payload human approval record | PR #18 | Canonical payload/envelope digests, separate approver, grant revalidation, expiry, idempotency, and replay-safe decision transition; no action execution |
 
 ## Not yet implemented or not yet proven
 
-- Exact-payload human approval, expiry, replay protection, and approval revocation.
+- Approval attestation using a managed signing key; current SHA-256 digests are unkeyed consistency checks, not tamper-proof signatures.
+- Approval consumption and exact-payload verification inside a future execution transaction.
 - External action execution and post-execution verification.
 - Full outbound disclosure enforcement at every adapter, tool, message, and model boundary.
 - Public unauthenticated discovery, external search providers, and distributed rate limiting.
