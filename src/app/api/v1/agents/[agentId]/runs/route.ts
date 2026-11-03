@@ -123,11 +123,11 @@ export async function POST(request: Request, context: RouteContext) {
   for (const grant of eligibleGrants) {
     if (grant.actionScope.includes("DISCOVER_INTERNAL") && declared.has("READ_PUBLIC_PROFILE")) {
       allowed.add("READ_PUBLIC_PROFILE");
-      grantIdsByAction.set("READ_PUBLIC_PROFILE", [...(grantIdsByAction.get("READ_PUBLIC_PROFILE") ?? []), grant.id]);
+      if (!grantIdsByAction.has("READ_PUBLIC_PROFILE")) grantIdsByAction.set("READ_PUBLIC_PROFILE", [grant.id]);
     }
     if (grant.actionScope.includes("SEARCH_PUBLIC_WEB") && declared.has("SEARCH_PUBLIC_WEB")) {
       allowed.add("SEARCH_PUBLIC_WEB");
-      grantIdsByAction.set("SEARCH_PUBLIC_WEB", [...(grantIdsByAction.get("SEARCH_PUBLIC_WEB") ?? []), grant.id]);
+      if (!grantIdsByAction.has("SEARCH_PUBLIC_WEB")) grantIdsByAction.set("SEARCH_PUBLIC_WEB", [grant.id]);
     }
   }
   const authorizedActions = [...allowed].sort();
@@ -226,6 +226,9 @@ export async function POST(request: Request, context: RouteContext) {
       { status: 202, headers: { "Cache-Control": "no-store" } },
     );
   } catch (error) {
+    if (error instanceof Error && error.message === "GRANT_RESERVATION_CONFLICT") {
+      return apiError("CONFLICT", 409);
+    }
     if (isUniqueConstraintError(error)) {
       const duplicate = await prisma.agentRun.findUnique({
         where: {
