@@ -9,6 +9,7 @@ export const createAgentRunSchema = z.object({
     "Wildcards are not allowed.",
   ),
   idempotencyKey: z.string().trim().min(16).max(128).regex(/^[A-Za-z0-9._:-]+$/),
+  providerConsent: z.literal(true),
 }).strict();
 
 export type CreateAgentRunInput = z.infer<typeof createAgentRunSchema>;
@@ -19,6 +20,7 @@ export function digestAgentRunRequest(input: CreateAgentRunInput, agentId: strin
     task: input.task,
     purpose: input.purpose,
     target: input.target,
+    providerConsent: input.providerConsent,
   });
   return createHash("sha256").update(canonical).digest("hex");
 }
