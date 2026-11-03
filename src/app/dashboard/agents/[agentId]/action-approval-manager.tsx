@@ -44,8 +44,8 @@ export function ActionApprovalManager({
   const [approvals, setApprovals] = useState<Approval[]>([]);
   const [grantId, setGrantId] = useState(grants[0]?.id ?? "");
   const [actionType, setActionType] = useState("SEND_MESSAGE");
-  const [recipient, setRecipient] = useState("agent://target-1");
-  const [dataScopeText, setDataScopeText] = useState("PUBLIC_PROFILE");
+  const [recipient, setRecipient] = useState(grants[0]?.targetScope[0] ?? "");
+  const [dataScopeText, setDataScopeText] = useState(grants[0]?.dataScope[0] ?? "");
   const [payloadText, setPayloadText] = useState('{ "message": "Hello" }');
   const [expiresInMinutes, setExpiresInMinutes] = useState(30);
   const [busy, setBusy] = useState(false);
@@ -168,7 +168,21 @@ export function ActionApprovalManager({
           <h3>طلب موافقة بشرية</h3>
           <div className="field">
             <label htmlFor="approval-grant">الصلاحية المستخدمة</label>
-            <select id="approval-grant" value={grantId} onChange={(event) => setGrantId(event.target.value)} required>
+            <select
+              id="approval-grant"
+              value={grantId}
+              onChange={(event) => {
+                const nextId = event.target.value;
+                const selected = grants.find((grant) => grant.id === nextId);
+                setGrantId(nextId);
+                if (selected) {
+                  setActionType(selected.actionScope[0] ?? "SEND_MESSAGE");
+                  setRecipient(selected.targetScope[0] ?? "");
+                  setDataScopeText(selected.dataScope[0] ?? "");
+                }
+              }}
+              required
+            >
               {grants.map((grant) => (
                 <option key={grant.id} value={grant.id}>
                   {grant.id} · {grant.actionScope.join(", ")}
