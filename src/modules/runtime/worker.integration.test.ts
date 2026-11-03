@@ -237,9 +237,15 @@ suite("agent worker (PostgreSQL integration)", () => {
     expect(saved).toMatchObject({ status: "QUEUED", attemptCount: 1, workerId: null });
     const grant = await prisma.permissionGrant.findUniqueOrThrow({ where: { id: grantId } });
     expect(grant.reservedUses).toBe(1);
-    await prisma.agentRun.update({
-      where: { id: run.id },
-      data: { availableAt: new Date(Date.now() + 24 * 60 * 60 * 1000) },
+    await prisma.$transaction(async (tx) => {
+      await tx.agentRun.updateMany({
+        where: { id: run.id, status: "QUEUED" },
+        data: { status: "CANCELLED", cancelledAt: new Date(), completedAt: new Date() },
+      });
+      await tx.permissionGrant.updateMany({
+        where: { id: grantId, reservedUses: { gt: 0 } },
+        data: { reservedUses: { decrement: 1 } },
+      });
     });
   });
 
