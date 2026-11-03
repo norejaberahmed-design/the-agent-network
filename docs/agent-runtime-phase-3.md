@@ -7,7 +7,7 @@ Status: implemented as a server-side planning worker. It does not execute plan s
 - Internal endpoint: POST /api/internal/agent-worker
 - Authentication: Authorization: Bearer <AGENT_WORKER_SECRET>, compared in constant time.
 - One invocation claims and processes at most one run, and also purges expired run records.
-- Schedule a trusted server-side cron invocation (for example, once per minute). Do not call this endpoint from browser code. Example command for the scheduler: `curl -fsS -X POST "$APP_URL/api/internal/agent-worker" -H "Authorization: Bearer $AGENT_WORKER_SECRET"`. Keep the secret in the scheduler secret store, never in a URL or client bundle.
+- The repository includes an opt-in GitHub Actions scheduler (`.github/workflows/agent-worker.yml`) that invokes one worker iteration hourly and can also be started manually. It remains inert until the operator adds `APP_URL` and `AGENT_WORKER_SECRET` as repository secrets after deployment. Scheduled workflows run from the default branch, so this workflow becomes active only after its reviewed PR is merged. Do not call the endpoint from browser code. Keep the secret in the scheduler secret store, never in a URL or client bundle.
 - The endpoint is disabled unless AGENT_WORKER_SECRET, OPENAI_API_KEY, and OPENAI_AGENT_MODEL are configured.
 
 ## Required environment
