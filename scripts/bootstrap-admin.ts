@@ -29,14 +29,24 @@ async function main() {
 
   const created = await prisma.user.findUnique({
     where: { email },
+    select: { id: true, email: true },
+  });
+
+  if (!created) {
+    throw new Error("Bootstrap sign-up completed but the account could not be found.");
+  }
+
+  const promoted = await prisma.user.update({
+    where: { id: created.id },
+    data: { platformRole: "PLATFORM_ADMIN" },
     select: { id: true, email: true, platformRole: true },
   });
 
-  if (!created || created.platformRole !== "PLATFORM_ADMIN") {
-    throw new Error("Bootstrap did not produce a platform administrator. Inspect the auth and database configuration.");
+  if (promoted.platformRole !== "PLATFORM_ADMIN") {
+    throw new Error("Could not assign the initial platform administrator role.");
   }
 
-  console.log(`Created initial platform administrator: ${created.email}`);
+  console.log(`Created initial platform administrator: ${promoted.email}`);
   console.log("Remove TAN_BOOTSTRAP_TOKEN and TAN_BOOTSTRAP_ADMIN_* values from the runtime environment now.");
 }
 
