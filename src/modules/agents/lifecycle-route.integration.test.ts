@@ -27,6 +27,7 @@ const orgManagerId = `lifecycle-org-manager-${suffix}`;
 const organizationId = `lifecycle-org-${suffix}`;
 const personalAgentId = `lifecycle-personal-agent-${suffix}`;
 const organizationAgentId = `lifecycle-organization-agent-${suffix}`;
+const revokedAgentId = `lifecycle-revoked-agent-${suffix}`;
 
 const setSessionUser = (userId: string | null) => {
   vi.mocked(auth.api.getSession).mockResolvedValue(
@@ -87,6 +88,15 @@ suite("agent lifecycle and discovery activation (PostgreSQL integration)", () =>
           status: "DRAFT",
           discoverable: false,
         },
+        {
+          id: revokedAgentId,
+          ownerType: "USER",
+          userOwnerId: ownerId,
+          name: "Revoked Lifecycle Agent",
+          purpose: "Terminal state fixture.",
+          status: "REVOKED",
+          discoverable: false,
+        },
       ],
     });
   });
@@ -95,13 +105,13 @@ suite("agent lifecycle and discovery activation (PostgreSQL integration)", () =>
     await prisma.auditEvent.deleteMany({
       where: {
         OR: [
-          { agentId: { in: [personalAgentId, organizationAgentId] } },
+          { agentId: { in: [personalAgentId, organizationAgentId, revokedAgentId] } },
           { ownerId: organizationId },
         ],
       },
     });
     await prisma.agent.deleteMany({
-      where: { id: { in: [personalAgentId, organizationAgentId] } },
+      where: { id: { in: [personalAgentId, organizationAgentId, revokedAgentId] } },
     });
     await prisma.membership.deleteMany({ where: { organizationId } });
     await prisma.organization.deleteMany({ where: { id: organizationId } });
@@ -227,7 +237,12 @@ suite("agent lifecycle and discovery activation (PostgreSQL integration)", () =>
       patchRequest({ status: "DRAFT", discoverable: true }),
       context(personalAgentId),
     );
+    const reactivateRevoked = await updateLifecycle(
+      patchRequest({ status: "ACTIVE", discoverable: false }),
+      context(revokedAgentId),
+    );
     expect(revoked.status).toBe(422);
     expect(draftPublic.status).toBe(422);
+    expect(reactivateRevoked.status).toBe(409);
   });
 });
