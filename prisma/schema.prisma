@@ -312,6 +312,7 @@ model AgentRun {
   requesterUserId   String
   ownerType         AgentOwnerType
   ownerId           String
+  agentConfigurationVersion Int @default(1)
   task              String         @db.VarChar(4000)
   purpose           String         @db.VarChar(300)
   target            String         @db.VarChar(128)
