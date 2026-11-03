@@ -26,6 +26,15 @@ type Approval = {
   createdAt: string;
   requester: { id: string; name: string };
   approver: { id: string; name: string } | null;
+  grant: {
+    purpose: string;
+    actionScope: string[];
+    targetScope: string[];
+    dataScope: string[];
+    expiresAt: string;
+    maxUses: number | null;
+    uses: number;
+  };
 };
 
 export function ActionApprovalManager({
@@ -244,7 +253,16 @@ export function ActionApprovalManager({
                   المستلم: {approval.recipient} · مقدم الطلب: {approval.requester.name}
                 </p>
                 <p className="muted" style={{ margin: "4px 0", fontSize: 12 }}>
-                  نطاق البيانات: {approval.requestedDataScope.join("، ")}
+                  نطاق البيانات المطلوب: {approval.requestedDataScope.join("، ")}
+                </p>
+                <p className="muted" style={{ margin: "4px 0", fontSize: 12 }}>
+                  الصلاحية: {approval.grant.purpose}
+                </p>
+                <p className="muted" style={{ margin: "4px 0", fontSize: 12 }}>
+                  نطاق الصلاحية: {approval.grant.actionScope.join("، ")} · {approval.grant.targetScope.join("، ")} · {approval.grant.dataScope.join("، ")}
+                </p>
+                <p className="muted" style={{ margin: "4px 0", fontSize: 12 }}>
+                  الاستخدامات: {approval.grant.uses}/{approval.grant.maxUses ?? "غير محدود"}
                 </p>
                 <p className="muted" style={{ margin: "4px 0", fontSize: 12 }}>
                   بصمة الحمولة: {approval.payloadDigest.slice(0, 16)}…
