@@ -37,7 +37,8 @@ export type AgentDisclosureDecision = {
     | "OWNER_APPROVAL_REQUIRED"
     | "PURPOSE_NOT_ALLOWED"
     | "AUDIENCE_NOT_ALLOWED"
-    | "HIGHLY_SENSITIVE_DENIED";
+    | "HIGHLY_SENSITIVE_DENIED"
+    | "VALUE_UNAVAILABLE";
 };
 
 export type AgentDisclosureSource = {
@@ -114,8 +115,12 @@ export function projectAgentDisclosure(
         continue;
       }
       const value = values[fieldKey];
-      if (value !== null) profile[fieldKey] = value;
-      decisions.push({ fieldKey, included: value !== null, reason: "INCLUDED_PUBLIC" });
+      if (value === null) {
+        decisions.push({ fieldKey, included: false, reason: "VALUE_UNAVAILABLE" });
+        continue;
+      }
+      profile[fieldKey] = value;
+      decisions.push({ fieldKey, included: true, reason: "INCLUDED_PUBLIC" });
       continue;
     }
 
@@ -139,10 +144,14 @@ export function projectAgentDisclosure(
     }
 
     const value = values[fieldKey];
-    if (value !== null) profile[fieldKey] = value;
+    if (value === null) {
+      decisions.push({ fieldKey, included: false, reason: "VALUE_UNAVAILABLE" });
+      continue;
+    }
+    profile[fieldKey] = value;
     decisions.push({
       fieldKey,
-      included: value !== null,
+      included: true,
       reason: "INCLUDED_OWNER_APPROVED",
     });
   }
