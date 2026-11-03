@@ -8,6 +8,7 @@ import { GrantManager } from "./grant-manager";
 import { FieldPolicyManager } from "./field-policy-manager";
 import { AgentLifecycleManager } from "./lifecycle-manager";
 import { ActionApprovalManager } from "./action-approval-manager";
+import { RunManager } from "./run-manager";
 
 export const dynamic = "force-dynamic";
 
@@ -50,6 +51,7 @@ export default async function AgentDetailPage({
       expiresAt: true,
       maxUses: true,
       uses: true,
+      reservedUses: true,
       version: true,
       status: true,
       createdAt: true,
@@ -57,6 +59,40 @@ export default async function AgentDetailPage({
     },
     orderBy: { createdAt: "desc" },
   });
+
+  const runs = access.canView ? await prisma.agentRun.findMany({
+    where: { agentId },
+    select: {
+      id: true,
+      task: true,
+      purpose: true,
+      target: true,
+      authorizedActions: true,
+      status: true,
+      attemptCount: true,
+      maxAttempts: true,
+      createdAt: true,
+    },
+    orderBy: { createdAt: "desc" },
+    take: 50,
+  }) : [];
+
+  const grantOptions = grants
+    .filter((grant) =>
+      grant.status === "ACTIVE" &&
+      grant.expiresAt > new Date() &&
+      (grant.maxUses === null || grant.uses + grant.reservedUses < grant.maxUses) &&
+      grant.dataScope.includes("PUBLIC_PROFILE")
+    )
+    .flatMap((grant) => grant.targetScope.map((target) => ({
+      purpose: grant.purpose,
+      target,
+      actionScope: grant.actionScope,
+      dataScope: grant.dataScope,
+    })))
+    .filter((option, index, all) => all.findIndex((candidate) =>
+      candidate.purpose === option.purpose && candidate.target === option.target
+    ) === index);
 
   return (
     <main className="shell">
@@ -88,6 +124,14 @@ export default async function AgentDetailPage({
             ...policy,
             updatedAt: policy.updatedAt.toISOString(),
           }))}
+        />
+      ) : null}
+      {access.canManagePermissions ? (
+        <RunManager
+          agentId={agentId}
+          active={access.agent.status === "ACTIVE"}
+          initialRuns={runs.map((run) => ({ ...run, createdAt: run.createdAt.toISOString() }))}
+          grantOptions={grantOptions}
         />
       ) : null}
       {access.canViewGrants ? (
