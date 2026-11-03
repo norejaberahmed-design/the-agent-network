@@ -35,6 +35,7 @@ export default async function OrganizationWorkspacePage({
     <main className="shell">
       <header className="topbar">
         <Link className="brand" href="/"><span className="brand-mark">A</span>The Agent Network</Link>
+        {membership.role === "OWNER" || membership.role === "ADMIN" || membership.role === "AUDITOR" ? <Link className="muted" href={`/dashboard/organizations/${organizationId}/audit`}>سجل التدقيق</Link> : null}
         <Link className="muted" href="/dashboard/organizations">المؤسسات</Link>
       </header>
       <section className="hero" style={{ paddingTop: 28 }}>
