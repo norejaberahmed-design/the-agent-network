@@ -69,8 +69,8 @@ async function createGrant(key: string) {
   });
 }
 
-async function submitApproval(grantId: string, idempotencyKey: string, payload: Record<string, unknown> = { message: "Hello", apiKey: "sensitive-value" }) {
-  setSessionUser(adminId);
+async function submitApproval(grantId: string, idempotencyKey: string, payload: Record<string, unknown> = { message: "Hello", apiKey: "sensitive-value" }, requesterId = adminId) {
+  setSessionUser(requesterId);
   return createApprovalRequest(
     postRequest({
       grantId,
@@ -272,7 +272,7 @@ suite("exact-payload action approval workflow (PostgreSQL integration)", () => {
 
   it("allows an organization admin to reject a request with an audit record", async () => {
     const grant = await createGrant("reject");
-    const response = await submitApproval(grant.id, `reject-key-${suffix}`);
+    const response = await submitApproval(grant.id, `reject-key-${suffix}`, undefined, ownerId);
     const payload = await response.json();
 
     setSessionUser(adminId);
