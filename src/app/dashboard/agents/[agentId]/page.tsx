@@ -1,0 +1,70 @@
+import Link from "next/link";
+import { headers } from "next/headers";
+import { notFound, redirect } from "next/navigation";
+import { auth } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+import { getAgentAccess } from "@/modules/agents/access";
+import { GrantManager } from "./grant-manager";
+
+export const dynamic = "force-dynamic";
+
+export default async function AgentDetailPage({
+  params,
+}: {
+  params: Promise<{ agentId: string }>;
+}) {
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session) redirect("/sign-in");
+
+  const { agentId } = await params;
+  const access = await getAgentAccess(agentId, session.user.id);
+  if (!access) notFound();
+
+  const grants = await prisma.permissionGrant.findMany({
+    where: { agentId },
+    select: {
+      id: true,
+      purpose: true,
+      actionScope: true,
+      targetScope: true,
+      dataScope: true,
+      expiresAt: true,
+      maxUses: true,
+      uses: true,
+      version: true,
+      status: true,
+      createdAt: true,
+      revokedAt: true,
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+  return (
+    <main className="shell">
+      <header className="topbar">
+        <Link className="brand" href="/"><span className="brand-mark">A</span>The Agent Network</Link>
+        <Link className="muted" href={access.ownerType === "USER" ? "/dashboard" : "/dashboard/organizations"}>العودة</Link>
+      </header>
+      <section className="hero" style={{ paddingTop: 28 }}>
+        <div className="eyebrow">AGENT GOVERNANCE</div>
+        <h1 style={{ fontSize: 36 }}>{access.agent.name}</h1>
+        <p className="lead">{access.agent.purpose}</p>
+        <div className="actions">
+          <span className="pill">{access.agent.status}</span>
+          <span className="muted">{access.ownerType === "USER" ? "وكيل شخصي" : "وكيل مؤسسة"}</span>
+          <span className="muted">الإصدار {access.agent.configurationVersion}</span>
+        </div>
+      </section>
+      <GrantManager
+        agentId={agentId}
+        canManage={access.canManage}
+        initialGrants={grants.map((grant) => ({
+          ...grant,
+          expiresAt: grant.expiresAt.toISOString(),
+          createdAt: grant.createdAt.toISOString(),
+          revokedAt: grant.revokedAt?.toISOString() ?? null,
+        }))}
+      />
+    </main>
+  );
+}
