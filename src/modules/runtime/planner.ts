@@ -21,9 +21,15 @@ export const agentPlanStepSchema = z.object({
   ).refine((value) => Object.keys(value).length <= 12, "Too many input fields"),
 }).strict();
 
+const agentPlanSourceSchema = z.object({
+  url: z.string().url().max(2048),
+  title: z.string().trim().min(1).max(300),
+}).strict();
+
 export const agentPlanSchema = z.object({
   summary: z.string().trim().min(1).max(1000),
   steps: z.array(agentPlanStepSchema).min(1).max(8),
+  sources: z.array(agentPlanSourceSchema).max(10).default([]),
 }).strict().superRefine((plan, ctx) => {
   const ids = new Set<string>();
   plan.steps.forEach((step, index) => {
