@@ -11,7 +11,7 @@ function validWorkerSecret(request: Request): boolean {
   const expected = process.env.AGENT_WORKER_SECRET;
   const authorization = request.headers.get("authorization") ?? "";
   const supplied = authorization.startsWith("Bearer ") ? authorization.slice(7) : "";
-  if (!expected || !supplied) return false;
+  if (!expected || expected.length < 32 || !supplied) return false;
   const expectedBytes = Buffer.from(expected, "utf8");
   const suppliedBytes = Buffer.from(supplied, "utf8");
   if (expectedBytes.length !== suppliedBytes.length) return false;
