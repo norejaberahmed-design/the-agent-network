@@ -59,12 +59,13 @@ The `build/platform-foundation-v1` branch contains an initial application founda
 - Health liveness/readiness endpoints.
 - Authenticated personal-agent and organization-owned agent create/list APIs with membership role checks.
 - Organization creation with owner membership.
+- Organization-scoped member invitations, member listing, least-privilege role changes, and member removal; offboarding revokes pending invitations issued by that member.
 - Agent governance page with scoped grant creation, listing, and revocation. Grants are stored but cannot execute actions yet.
 - Field-level disclosure policy editor with server validation that prevents non-public classifications from being marked public.
 - Arabic-first landing page, sign-in, invitation, and owner workspace interfaces.
 - Unit tests, browser smoke tests, and a CI workflow definition.
 
-**This is an early functional foundation, not a completed or production-ready network.** Organization member invitations/role administration, outbound disclosure enforcement, action execution, exact-payload approvals, discovery, evidence, messaging, external A2A/MCP integrations, regional deployment, and production security controls remain to be built and tested. The interface is Arabic-first; full English localization is not complete.
+**This is an early functional foundation, not a completed or production-ready network.** Outbound disclosure enforcement across all output boundaries, action execution, exact-payload approvals, discovery, evidence, messaging, external A2A/MCP integrations, regional deployment, and production security controls remain to be built and tested. The interface is Arabic-first; full English localization is not complete.
 
 No production deployment, security certification, legal compliance assessment, customer commitment, market demand, funding, or partnership is claimed. A code file is not considered complete until it is installed, typechecked, tested, and exercised against a real database.
 
