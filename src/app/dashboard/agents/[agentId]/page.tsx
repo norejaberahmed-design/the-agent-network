@@ -71,6 +71,13 @@ export default async function AgentDetailPage({
       status: true,
       attemptCount: true,
       maxAttempts: true,
+      planSummary: true,
+      planSources: true,
+      plannedAt: true,
+      steps: {
+        orderBy: { ordinal: "asc" },
+        select: { stepId: true, ordinal: true, action: true, description: true, input: true, status: true },
+      },
       createdAt: true,
     },
     orderBy: { createdAt: "desc" },
@@ -130,7 +137,7 @@ export default async function AgentDetailPage({
         <RunManager
           agentId={agentId}
           active={access.agent.status === "ACTIVE"}
-          initialRuns={runs.map((run) => ({ ...run, createdAt: run.createdAt.toISOString() }))}
+          initialRuns={runs.map((run) => ({ ...run, planSources: run.planSources as Array<{ url: string; title: string }> | null, createdAt: run.createdAt.toISOString() }))}
           grantOptions={grantOptions}
         />
       ) : null}
