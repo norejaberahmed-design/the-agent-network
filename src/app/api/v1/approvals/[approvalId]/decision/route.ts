@@ -98,6 +98,20 @@ export async function PATCH(request: Request, context: RouteContext) {
       : approval.agent.organizationOwnerId;
     if (!ownerId) return { state: "CONFLICT" as const };
 
+    const stillAuthorized = approval.agent.ownerType === "USER"
+      ? approval.agent.userOwnerId === session.user.id
+      : approval.agent.organizationOwnerId
+        ? Boolean(await tx.membership.findFirst({
+            where: {
+              organizationId: approval.agent.organizationOwnerId,
+              userId: session.user.id,
+              role: { in: ["OWNER", "ADMIN"] },
+            },
+            select: { id: true },
+          }))
+        : false;
+    if (!stillAuthorized) return { state: "FORBIDDEN" as const };
+
     const expireOrCancel = async (
       status: "EXPIRED" | "CANCELLED",
       reason: string,
