@@ -47,7 +47,8 @@ export function RunManager({
     setError("");
     setNotice("");
     try {
-      const grant = grantOptions[selected];
+      const grant = grantOptions[selected] ?? grantOptions[0];
+      if (!grant) return;
       const response = await fetch(`/api/v1/agents/${encodeURIComponent(agentId)}/runs`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -103,7 +104,7 @@ export function RunManager({
   return (
     <section className="panel" style={{ margin: "28px 0" }}>
       <div className="eyebrow">AGENT RUNTIME</div>
-      <h2>تشغيل المهام</h2>
+      <h2>إدارة المهام</h2>
       <p className="muted">تُحفظ المهمة في قاعدة البيانات بعد التحقق من صلاحيات الوكيل والتفويض النشط. قائمة الانتظار لا تنفّذ المهام حالياً.</p>
       {!active ? <p className="muted">فعّل الوكيل أولاً لإضافة مهام.</p> : grantOptions.length === 0 ? (
         <p className="muted">لا يوجد تفويض نشط يطابق غرضاً ونطاقاً مسموحاً. أنشئ تفويضاً محدوداً أولاً.</p>
