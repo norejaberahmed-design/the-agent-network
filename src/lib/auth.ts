@@ -1,8 +1,9 @@
-import { createHash, randomUUID } from "node:crypto";
+import { createHash } from "node:crypto";
 import { betterAuth } from "better-auth";
 import { APIError, createAuthMiddleware } from "better-auth/api";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { prisma } from "@/lib/prisma";
+import { completeInvitationRedemption } from "@/modules/invitations/complete-redemption";
 
 const secret = process.env.BETTER_AUTH_SECRET;
 if (!secret || secret.length < 32) {
@@ -126,48 +127,12 @@ export const auth = betterAuth({
           throw new Error("Invitation reservation identifier is missing.");
         }
 
-        const invitation = await prisma.invitation.findUnique({
-          where: { tokenHash },
-          select: { id: true, intendedEmail: true },
-        });
-        if (!invitation || (invitation.intendedEmail && invitation.intendedEmail.toLowerCase() !== email)) {
-          throw new Error("Invitation does not match the newly created account.");
-        }
-
-        await prisma.$transaction(async (tx) => {
-          const redeemed = await tx.invitation.updateMany({
-            where: {
-              id: invitation.id,
-              tokenHash,
-              status: "RESERVED",
-              reservationId,
-              reservationExpiresAt: { gt: now },
-              expiresAt: { gt: now },
-              OR: [{ intendedEmail: null }, { intendedEmail: email }],
-            },
-            data: {
-              status: "REDEEMED",
-              redeemedAt: now,
-              reservationId: null,
-              reservationExpiresAt: null,
-            },
-          });
-
-          if (redeemed.count !== 1) {
-            throw new Error("Invitation reservation is no longer valid.");
-          }
-
-          await tx.auditEvent.create({
-            data: {
-              actorUserId: newSession.user.id,
-              action: "invitation.redeemed",
-              targetType: "Invitation",
-              targetId: invitation.id,
-              outcome: "COMPLETED",
-              correlationId: randomUUID(),
-              metadata: { accountId: newSession.user.id },
-            },
-          });
+        await completeInvitationRedemption({
+          tokenHash,
+          reservationId,
+          userId: newSession.user.id,
+          email,
+          now,
         });
       } catch {
         await prisma.user.deleteMany({ where: { id: newSession.user.id } });

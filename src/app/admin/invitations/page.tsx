@@ -17,11 +17,25 @@ export default async function InvitationsAdminPage() {
   });
   if (actor?.platformRole !== "PLATFORM_ADMIN") redirect("/dashboard");
 
-  const invitations = await prisma.invitation.findMany({
-    select: { id: true, intendedEmail: true, status: true, expiresAt: true, createdAt: true },
-    orderBy: { createdAt: "desc" },
-    take: 30,
-  });
+  const [invitations, organizations] = await Promise.all([
+    prisma.invitation.findMany({
+      select: {
+        id: true,
+        intendedEmail: true,
+        status: true,
+        role: true,
+        expiresAt: true,
+        createdAt: true,
+        organization: { select: { name: true } },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 30,
+    }),
+    prisma.organization.findMany({
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
+    }),
+  ]);
 
   return (
     <main className="shell">
@@ -34,13 +48,19 @@ export default async function InvitationsAdminPage() {
         <h1 style={{ fontSize: 36 }}>إدارة الدعوات</h1>
         <p className="lead">إنشاء دعوات عالمية محددة البريد أو عامة، مع صلاحية محدودة واستخدام واحد.</p>
       </section>
-      <InvitationCreateForm />
+      <InvitationCreateForm organizations={organizations} />
       <section style={{ paddingBottom: 60 }}>
         <h2>آخر الدعوات</h2>
         <div className="list">
           {invitations.map((invite) => (
             <article className="agent-row" key={invite.id}>
-              <div><strong>{invite.intendedEmail ?? "دعوة عامة"}</strong><p className="muted" style={{ margin: "5px 0 0", fontSize: 12 }}>تنتهي: {invite.expiresAt.toLocaleString("en-GB")}</p></div>
+              <div>
+                <strong>{invite.intendedEmail ?? "دعوة عامة"}</strong>
+                <p className="muted" style={{ margin: "5px 0 0", fontSize: 12 }}>
+                  {invite.organization ? `${invite.organization.name} · ${invite.role}` : "دعوة عامة للمنصة"}
+                  {" · "}تنتهي: {invite.expiresAt.toLocaleString("en-GB")}
+                </p>
+              </div>
               <span className="pill">{invite.status}</span>
             </article>
           ))}

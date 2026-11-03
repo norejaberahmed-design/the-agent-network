@@ -1,6 +1,5 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { POST } from "../../app/api/admin/invitations/route";
@@ -22,6 +21,7 @@ const suite = enabled ? describe : describe.skip;
 const suffix = randomUUID();
 const adminId = `invitation-admin-${suffix}`;
 const memberId = `invitation-member-${suffix}`;
+const organizationId = `invitation-org-${suffix}`;
 
 const setSessionUser = (userId: string | null) => {
   vi.mocked(auth.api.getSession).mockResolvedValue(
@@ -57,6 +57,13 @@ suite("admin invitation API authorization and secret handling (PostgreSQL integr
         },
       ],
     });
+    await prisma.organization.create({
+      data: {
+        id: organizationId,
+        name: "Invitation Target Organization",
+        slug: `invitation-target-${suffix}`,
+      },
+    });
   });
 
   afterAll(async () => {
@@ -69,13 +76,14 @@ suite("admin invitation API authorization and secret handling (PostgreSQL integr
       where: { targetType: "Invitation", targetId: { in: ids } },
     });
     await prisma.invitation.deleteMany({ where: { id: { in: ids } } });
+    await prisma.organization.deleteMany({ where: { id: organizationId } });
     await prisma.user.deleteMany({ where: { id: { in: [adminId, memberId] } } });
     vi.mocked(auth.api.getSession).mockReset();
   });
 
   it("rejects unauthenticated callers", async () => {
     setSessionUser(null);
-    const response = await POST(createRequest({}),);
+    const response = await POST(createRequest({}));
     expect(response.status).toBe(401);
   });
 
@@ -129,6 +137,43 @@ suite("admin invitation API authorization and secret handling (PostgreSQL integr
     });
     expect(audit.metadata).not.toHaveProperty("token");
     expect(audit.metadata).not.toHaveProperty("tokenHash");
+  });
+
+
+  it("creates organization-scoped invitations with a bounded non-owner role", async () => {
+    setSessionUser(adminId);
+    const response = await POST(
+      createRequest({
+        email: "team@example.com",
+        organizationId,
+        role: "AGENT_MANAGER",
+        expiresInHours: 24,
+      }),
+    );
+    expect(response.status).toBe(201);
+    const payload = await response.json();
+    expect(payload.data).toMatchObject({
+      organizationId,
+      role: "AGENT_MANAGER",
+      intendedEmail: "team@example.com",
+    });
+    const stored = await prisma.invitation.findUniqueOrThrow({
+      where: { id: payload.data.id },
+      select: { organizationId: true, role: true },
+    });
+    expect(stored).toEqual({ organizationId, role: "AGENT_MANAGER" });
+  });
+
+  it("rejects organization invitations without a role and does not allow OWNER assignment", async () => {
+    setSessionUser(adminId);
+    const missingRole = await POST(
+      createRequest({ organizationId }),
+    );
+    const ownerRole = await POST(
+      createRequest({ organizationId, role: "OWNER" }),
+    );
+    expect(missingRole.status).toBe(422);
+    expect(ownerRole.status).toBe(422);
   });
 
   it("rejects invalid invitation payloads without creating records", async () => {
