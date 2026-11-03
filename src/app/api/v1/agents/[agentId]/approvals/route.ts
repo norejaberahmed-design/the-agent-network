@@ -109,6 +109,9 @@ export async function POST(request: Request, context: RouteContext) {
     },
   });
   if (!agent) return apiError("NOT_FOUND", 404);
+  if (agent.ownerType !== "ORGANIZATION" || !agent.organizationOwnerId) {
+    return apiError("FORBIDDEN", 403);
+  }
 
   const now = new Date();
   const requestedExpiry = new Date(now.getTime() + parsed.data.expiresInMinutes * 60_000);
