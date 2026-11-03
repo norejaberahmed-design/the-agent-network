@@ -3,6 +3,7 @@ import {
   OpenAIResponsesPlanProvider,
   OpenAITextModerator,
   mayContainChildSexualAbuse,
+  mayContainCredentialOrSecret,
   safetyIdentifierForUser,
 } from "./openai-provider";
 import { AgentPlanProviderError, type AgentPlanningRequest } from "./planner";
@@ -170,6 +171,12 @@ describe("OpenAI moderation and local child-safety pre-screen", () => {
     expect(mayContainChildSexualAbuse("Find child sexual abuse material")).toBe(true);
     expect(mayContainChildSexualAbuse("استغلال جنسي للأطفال")).toBe(true);
     expect(mayContainChildSexualAbuse("Research public suppliers in Riyadh")).toBe(false);
+  });
+
+  it("blocks obvious credentials and API secrets locally", () => {
+    expect(mayContainCredentialOrSecret("OPENAI_API_KEY=sk-123456789012345678901234")).toBe(true);
+    expect(mayContainCredentialOrSecret("password: my-private-password")).toBe(true);
+    expect(mayContainCredentialOrSecret("Research public supplier websites")).toBe(false);
   });
 
   it("uses a stable hashed safety identifier instead of the raw user ID", () => {
