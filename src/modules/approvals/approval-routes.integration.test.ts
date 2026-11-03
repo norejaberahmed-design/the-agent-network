@@ -382,5 +382,46 @@ suite("exact-payload action approval workflow (PostgreSQL integration)", () => {
     expect(ownerPayload.data.some((item: { requester: { id: string } }) =>
       item.requester.id === adminId,
     )).toBe(true);
+  }); 
+  it("serializes concurrent idempotent request creation", async () => {
+    const grant = await createGrant("concurrent-idempotency");
+    const key = `concurrent-key-${suffix}`;
+    const [first, second] = await Promise.all([
+      submitApproval(grant.id, key),
+      submitApproval(grant.id, key),
+    ]);
+    expect([first.status, second.status].sort()).toEqual([200, 201]);
+    await expect(
+      prisma.actionApproval.count({ where: { idempotencyKey: key } }),
+    ).resolves.toBe(1);
   });
+
+  it("allows exactly one concurrent approval decision", async () => {
+    const grant = await createGrant("concurrent-decision");
+    const response = await submitApproval(grant.id, `concurrent-decision-key-${suffix}`);
+    const payload = await response.json();
+
+    setSessionUser(ownerId);
+    const decisions = await Promise.all([
+      decideApproval(
+        patchRequest({ decision: "APPROVE" }),
+        decisionContext(payload.data.id),
+      ),
+      decideApproval(
+        patchRequest({ decision: "APPROVE" }),
+        decisionContext(payload.data.id),
+      ),
+    ]);
+    expect(decisions.map((item) => item.status).sort()).toEqual([200, 409]);
+    await expect(
+      prisma.auditEvent.count({
+        where: {
+          ownerId: organizationId,
+          action: "action_approval.approved",
+          targetId: payload.data.id,
+        },
+      }),
+    ).resolves.toBe(1);
+  });
+
 });
