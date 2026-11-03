@@ -1,10 +1,11 @@
-import { createHash, randomBytes, randomUUID } from "node:crypto";
+
 import { headers } from "next/headers";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { apiError } from "@/lib/api-response";
 import { isTrustedMutationRequest } from "@/lib/request-security";
 import { prisma } from "@/lib/prisma";
+import { issueInvitation } from "@/modules/invitations/issue-invitation";
 
 export const runtime = "nodejs";
 
@@ -59,52 +60,23 @@ export async function POST(request: Request) {
     if (!organization) return apiError("NOT_FOUND", 404);
   }
 
-  const token = randomBytes(32).toString("base64url");
-  const tokenHash = createHash("sha256").update(token).digest("hex");
-  const expiresAt = new Date(Date.now() + parsed.data.expiresInHours * 60 * 60 * 1000);
-  const correlationId = randomUUID();
-
-  const invitation = await prisma.$transaction(async (tx) => {
-    const created = await tx.invitation.create({
-      data: {
-        tokenHash,
-        intendedEmail: parsed.data.email?.toLowerCase() ?? null,
-        organizationId: parsed.data.organizationId ?? null,
-        role: parsed.data.role ?? null,
-        expiresAt,
-        createdById: session.user.id,
-      },
-      select: { id: true, intendedEmail: true, organizationId: true, role: true, expiresAt: true, status: true },
-    });
-
-    await tx.auditEvent.create({
-      data: {
-        actorUserId: session.user.id,
-        action: "invitation.created",
-        targetType: "Invitation",
-        targetId: created.id,
-        outcome: "COMPLETED",
-        correlationId,
-        metadata: {
-          intendedEmail: created.intendedEmail,
-          organizationId: created.organizationId,
-          role: created.role,
-          expiresAt: created.expiresAt.toISOString(),
-        },
-      },
-    });
-    return created;
+  const issued = await issueInvitation({
+    createdById: session.user.id,
+    email: parsed.data.email,
+    expiresInHours: parsed.data.expiresInHours,
+    organizationId: parsed.data.organizationId,
+    role: parsed.data.role,
   });
 
   const baseUrl = process.env.BETTER_AUTH_URL ?? new URL(request.url).origin;
   return Response.json(
     {
       data: {
-        ...invitation,
-        redemptionUrl: `${baseUrl}/accept-invitation#token=${token}`,
+        ...issued.invitation,
+        redemptionUrl: `${baseUrl}/accept-invitation#token=${issued.token}`,
         token,
       },
-      correlationId,
+      correlationId: issued.correlationId,
       warning: "The invitation token is shown once. Store and share it securely.",
     },
     { status: 201, headers: { "Cache-Control": "no-store" } },
