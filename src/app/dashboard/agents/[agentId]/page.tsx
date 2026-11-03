@@ -5,6 +5,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getAgentAccess } from "@/modules/agents/access";
 import { GrantManager } from "./grant-manager";
+import { FieldPolicyManager } from "./field-policy-manager";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +20,22 @@ export default async function AgentDetailPage({
   const { agentId } = await params;
   const access = await getAgentAccess(agentId, session.user.id);
   if (!access) notFound();
+
+  const fieldPolicies = await prisma.agentFieldPolicy.findMany({
+    where: { agentId },
+    select: {
+      id: true,
+      fieldKey: true,
+      classification: true,
+      publicVisible: true,
+      allowedPurposes: true,
+      allowedAudiences: true,
+      retentionDays: true,
+      policyVersion: true,
+      updatedAt: true,
+    },
+    orderBy: { fieldKey: "asc" },
+  });
 
   const grants = await prisma.permissionGrant.findMany({
     where: { agentId },
@@ -55,6 +72,14 @@ export default async function AgentDetailPage({
           <span className="muted">الإصدار {access.agent.configurationVersion}</span>
         </div>
       </section>
+      <FieldPolicyManager
+        agentId={agentId}
+        canManage={access.canManage}
+        initialPolicies={fieldPolicies.map((policy) => ({
+          ...policy,
+          updatedAt: policy.updatedAt.toISOString(),
+        }))}
+      />
       <GrantManager
         agentId={agentId}
         canManage={access.canManage}
