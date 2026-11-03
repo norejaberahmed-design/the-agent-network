@@ -58,6 +58,17 @@ export async function GET(_request: Request, context: RouteContext) {
       createdAt: true,
       requester: { select: { id: true, name: true } },
       approver: { select: { id: true, name: true } },
+      grant: {
+        select: {
+          purpose: true,
+          actionScope: true,
+          targetScope: true,
+          dataScope: true,
+          expiresAt: true,
+          maxUses: true,
+          uses: true,
+        },
+      },
     },
     orderBy: { createdAt: "desc" },
     take: 50,
