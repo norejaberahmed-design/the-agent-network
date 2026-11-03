@@ -14,6 +14,8 @@ permissions:
 jobs:
   generate:
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://tan:tan_local_only@localhost:5432/the_agent_network?schema=public
     steps:
       - uses: actions/checkout@v4
         with:
