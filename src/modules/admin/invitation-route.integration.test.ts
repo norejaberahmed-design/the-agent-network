@@ -1,6 +1,5 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { POST } from "../../app/api/admin/invitations/route";
@@ -84,7 +83,7 @@ suite("admin invitation API authorization and secret handling (PostgreSQL integr
 
   it("rejects unauthenticated callers", async () => {
     setSessionUser(null);
-    const response = await POST(createRequest({}),);
+    const response = await POST(createRequest({}));
     expect(response.status).toBe(401);
   });
 
