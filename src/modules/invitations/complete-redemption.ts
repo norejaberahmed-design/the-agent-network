@@ -23,6 +23,14 @@ export async function completeInvitationRedemption(
   const email = input.email.trim().toLowerCase();
 
   return prisma.$transaction(async (tx) => {
+    const account = await tx.user.findUnique({
+      where: { id: input.userId },
+      select: { email: true },
+    });
+    if (!account || account.email.trim().toLowerCase() !== email) {
+      throw new Error("New account identity does not match the redemption email.");
+    }
+
     const invitation = await tx.invitation.findUnique({
       where: { tokenHash: input.tokenHash },
       select: {
