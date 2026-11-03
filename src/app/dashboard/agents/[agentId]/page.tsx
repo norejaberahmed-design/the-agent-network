@@ -82,7 +82,7 @@ export default async function AgentDetailPage({
       />
       <GrantManager
         agentId={agentId}
-        canManage={access.canManage}
+        canManage={access.canManagePermissions}
         initialGrants={grants.map((grant) => ({
           ...grant,
           expiresAt: grant.expiresAt.toISOString(),
