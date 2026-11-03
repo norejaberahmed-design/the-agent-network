@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 type GrantOption = {
@@ -41,6 +41,7 @@ export function RunManager({
   const [providerConsent, setProviderConsent] = useState(false);
   const [selected, setSelected] = useState(0);
   const [runs, setRuns] = useState(initialRuns);
+  useEffect(() => setRuns(initialRuns), [initialRuns]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -135,7 +136,10 @@ export function RunManager({
   return (
     <section className="panel" style={{ margin: "28px 0" }}>
       <div className="eyebrow">AGENT RUNTIME</div>
-      <h2>إدارة المهام</h2>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+        <h2>إدارة المهام</h2>
+        <button className="button secondary" type="button" onClick={() => router.refresh()}>تحديث القائمة</button>
+      </div>
       <p className="muted">يُحفظ نص المهمة في قاعدة البيانات ويُرسل إلى مزود الذكاء الاصطناعي عند تشغيل العامل. تُحذف المهام والخطط بعد 30 يوماً. لا تُدخل كلمات مرور أو بيانات شخصية أو أسراراً. لا ينفّذ النظام أي إجراء خارجي من هذه الشاشة.</p>
       {!active ? <p className="muted">فعّل الوكيل أولاً لإضافة مهام.</p> : grantOptions.length === 0 ? (
         <p className="muted">لا يوجد تفويض نشط يطابق غرضاً ونطاقاً مسموحاً. أنشئ تفويضاً محدوداً أولاً.</p>
