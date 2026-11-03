@@ -3,6 +3,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
+type PublicPreview = {
+  profile: Partial<Record<"name" | "publicDescription" | "purpose", string>>;
+  decisions: { fieldKey: string; included: boolean; reason: string }[];
+  status: string;
+  discoverable: boolean;
+  readyForPublicDiscovery: boolean;
+};
+
 type Policy = {
   id: string;
   fieldKey: string;
@@ -44,6 +52,9 @@ export function FieldPolicyManager({
   const [retentionDays, setRetentionDays] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [preview, setPreview] = useState<PublicPreview | null>(null);
+  const [previewBusy, setPreviewBusy] = useState(false);
+  const [previewError, setPreviewError] = useState("");
 
   useEffect(() => {
     setClassification(selected?.classification ?? (fieldKey === "purpose" ? "PRIVATE" : "PUBLIC"));
@@ -52,6 +63,27 @@ export function FieldPolicyManager({
     setAudiences(selected?.allowedAudiences.join(", ") ?? "");
     setRetentionDays(selected?.retentionDays ? String(selected.retentionDays) : "");
   }, [selected, fieldKey]);
+
+  async function previewPublicProfile() {
+    setPreviewError("");
+    setPreviewBusy(true);
+    try {
+      const response = await fetch(
+        `/api/v1/agents/${encodeURIComponent(agentId)}/disclosure-preview`,
+        { cache: "no-store" },
+      );
+      const body = await response.json();
+      if (!response.ok) {
+        setPreviewError("تعذر إنشاء معاينة الإفصاح العام.");
+        return;
+      }
+      setPreview(body.data);
+    } catch {
+      setPreviewError("تعذر الاتصال بالخادم لإنشاء المعاينة.");
+    } finally {
+      setPreviewBusy(false);
+    }
+  }
 
   async function save(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -91,6 +123,50 @@ export function FieldPolicyManager({
     <section className="panel" style={{ marginBottom: 22 }}>
       <h2>خصوصية الحقول والإفصاح</h2>
       <p className="muted">حدد تصنيف كل حقل والجمهور والغرض المسموح. لا يسمح النظام بإظهار حقل خاص أو سياقي أو شديد الحساسية للعامة.</p>
+      {canManage ? (
+        <div style={{ display: "grid", gap: 10, marginBottom: 16 }}>
+          <div>
+            <button className="button secondary" type="button" onClick={() => void previewPublicProfile()} disabled={previewBusy}>
+              {previewBusy ? "جارٍ إعداد المعاينة..." : "معاينة ما سيظهر للعامة"}
+            </button>
+          </div>
+          {previewError ? <p className="error" role="alert">{previewError}</p> : null}
+          {preview ? (
+            <div className="panel" aria-live="polite">
+              <strong>{preview.readyForPublicDiscovery ? "الوكيل جاهز للاكتشاف العام" : "الوكيل غير مفعّل للاكتشاف العام"}</strong>
+              <p className="muted" style={{ fontSize: 12 }}>
+                الحالة: {preview.status} · الاكتشاف: {preview.discoverable ? "مفعّل" : "معطّل"}
+              </p>
+              <h3>الحقول التي ستُعرض</h3>
+              {preview.profile.name ? <p><strong>الاسم:</strong> {preview.profile.name}</p> : null}
+              {preview.profile.publicDescription ? <p><strong>الوصف:</strong> {preview.profile.publicDescription}</p> : null}
+              {preview.profile.purpose ? <p><strong>الغرض:</strong> {preview.profile.purpose}</p> : null}
+              {Object.keys(preview.profile).length === 0 ? <p className="muted">لن يظهر أي حقل من الملف الشخصي.</p> : null}
+              <h3>أسباب الحجب والسماح</h3>
+              <ul>
+                {preview.decisions.map((decision) => (
+                  <li key={decision.fieldKey}>
+                    {fields.find((field) => field.key === decision.fieldKey)?.label ?? decision.fieldKey}
+                    {" — "}
+                    {decision.included ? "مسموح" : ({
+                      POLICY_MISSING: "لا توجد سياسة — محجوب",
+                      POLICY_AMBIGUOUS: "سياسات متعارضة — محجوب",
+                      NOT_PUBLIC: "غير مفعّل للعامة",
+                      OWNER_APPROVAL_REQUIRED: "يتطلب موافقة مالك محددة",
+                      PURPOSE_NOT_ALLOWED: "الغرض غير مسموح",
+                      AUDIENCE_NOT_ALLOWED: "الجمهور غير مسموح",
+                      HIGHLY_SENSITIVE_DENIED: "شديد الحساسية — محظور",
+                      INVALID_PUBLIC_VISIBILITY: "إعداد غير صالح — محجوب",
+                      VALUE_UNAVAILABLE: "القيمة غير متاحة",
+                    }[decision.reason] ?? "محجوب")}
+                  </li>
+                ))}
+              </ul>
+              <p className="muted" style={{ fontSize: 12 }}>هذه معاينة داخلية للسياسة وليست نشرًا عامًا أو تفعيلًا للاتصال الخارجي.</p>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
       <div className="field">
         <label htmlFor="policy-field">الحقل</label>
         <select id="policy-field" value={fieldKey} onChange={(event) => setFieldKey(event.target.value)}>
