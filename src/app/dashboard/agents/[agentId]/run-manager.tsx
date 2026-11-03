@@ -62,6 +62,7 @@ export function RunManager({
           purpose: grant.purpose,
           target: grant.target,
           idempotencyKey: crypto.randomUUID(),
+          providerConsent: true,
         }),
       });
       const body = await response.json();
