@@ -22,7 +22,6 @@ export type AgentDisclosureContext = {
    * model-generated payload.
    */
   ownerApproved: boolean;
-  now?: Date;
 };
 
 export type AgentDisclosureDecision = {
@@ -74,7 +73,6 @@ export function projectAgentDisclosure(
   };
   const profile: Partial<Record<AgentDisclosureFieldKey, string>> = {};
   const decisions: AgentDisclosureDecision[] = [];
-  const now = context.now ?? new Date();
 
   for (const fieldKey of ["name", "publicDescription", "purpose"] as const) {
     const matchingPolicies = policies.filter((policy) => policy.fieldKey === fieldKey);
