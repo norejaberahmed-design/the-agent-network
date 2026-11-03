@@ -146,9 +146,12 @@ export async function POST(request: Request, context: RouteContext) {
     const created = await prisma.$transaction(async (tx) => {
       const activeAgent = await tx.agent.findFirst({
         where: { id: agentId, status: "ACTIVE" },
-        select: { id: true },
+        select: { id: true, configurationVersion: true },
       });
       if (!activeAgent) throw new Error("AGENT_NOT_ACTIVE");
+      if (activeAgent.configurationVersion !== access.agent.configurationVersion) {
+        throw new Error("AGENT_CONFIGURATION_CHANGED");
+      }
       if (access.ownerType === "ORGANIZATION") {
         const membership = await tx.membership.findUnique({
           where: { organizationId_userId: { organizationId: access.ownerId, userId: session.user.id } },
@@ -239,6 +242,7 @@ export async function POST(request: Request, context: RouteContext) {
             reservedGrantCount: selectedGrantIds.length,
             target: input.target,
             status: "QUEUED",
+            providerConsentVersion: "ai-processing-v1",
           },
         },
       });
