@@ -37,6 +37,7 @@ export function RunManager({
 }) {
   const router = useRouter();
   const [task, setTask] = useState("");
+  const [providerConsent, setProviderConsent] = useState(false);
   const [selected, setSelected] = useState(0);
   const [runs, setRuns] = useState(initialRuns);
   const [busy, setBusy] = useState(false);
@@ -45,7 +46,7 @@ export function RunManager({
 
   async function queueRun(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!active || grantOptions.length === 0) return;
+    if (!active || grantOptions.length === 0 || !providerConsent) return;
     setBusy(true);
     setError("");
     setNotice("");
@@ -68,6 +69,7 @@ export function RunManager({
         return;
       }
       setTask("");
+      setProviderConsent(false);
       setRuns((current) => [body.data as Run, ...current].slice(0, 50));
       setNotice("تم حفظ المهمة في قائمة الانتظار. سيُنشئ العامل خطة للمراجعة فقط.");
       router.refresh();
@@ -132,7 +134,7 @@ export function RunManager({
     <section className="panel" style={{ margin: "28px 0" }}>
       <div className="eyebrow">AGENT RUNTIME</div>
       <h2>إدارة المهام</h2>
-      <p className="muted">تُحفظ المهمة ثم يُنشئ العامل خطة ومصادر للمراجعة بعد إعادة التحقق من التفويض. لا ينفّذ النظام أي إجراء خارجي من هذه الشاشة.</p>
+      <p className="muted">يُحفظ نص المهمة في قاعدة البيانات ويُرسل إلى مزود الذكاء الاصطناعي عند تشغيل العامل. لا تُدخل كلمات مرور أو بيانات شخصية أو أسراراً. لا ينفّذ النظام أي إجراء خارجي من هذه الشاشة.</p>
       {!active ? <p className="muted">فعّل الوكيل أولاً لإضافة مهام.</p> : grantOptions.length === 0 ? (
         <p className="muted">لا يوجد تفويض نشط يطابق غرضاً ونطاقاً مسموحاً. أنشئ تفويضاً محدوداً أولاً.</p>
       ) : (
@@ -151,7 +153,11 @@ export function RunManager({
             <label htmlFor="run-task">المهمة المطلوبة</label>
             <textarea id="run-task" required minLength={1} maxLength={4000} rows={4} value={task} onChange={(event) => setTask(event.target.value)} />
           </div>
-          <div><button className="button" type="submit" disabled={busy || !task.trim()}>{busy ? "جارٍ الحفظ..." : "إضافة إلى قائمة الانتظار"}</button></div>
+          <label style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+            <input type="checkbox" checked={providerConsent} onChange={(event) => setProviderConsent(event.target.checked)} />
+            <span>أوافق على إرسال نص المهمة إلى مزود الذكاء الاصطناعي المكوّن، واستخدام البحث العام فقط إذا سمح التفويض بذلك.</span>
+          </label>
+          <div><button className="button" type="submit" disabled={busy || !task.trim() || !providerConsent}>{busy ? "جارٍ الحفظ..." : "إضافة إلى قائمة الانتظار"}</button></div>
         </form>
       )}
       {error ? <p className="error" role="alert">{error}</p> : null}
