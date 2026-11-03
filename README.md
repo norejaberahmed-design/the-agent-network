@@ -55,11 +55,11 @@ The `build/platform-foundation-v1` branch contains an initial application scaffo
 - PostgreSQL + Prisma data model.
 - Better Auth email/password sign-in with invitation-gated account creation and a one-time first-admin bootstrap.
 - Single-use, expiring invitation issuance and redemption, restricted to platform administrators.\n- Health liveness/readiness endpoints.
-- An authenticated, owner-scoped personal-agent create/list API.
+- Authenticated personal-agent and organization-owned agent create/list APIs with membership role checks.\n- Organization creation with owner membership.
 - Arabic-first landing page, sign-in page, and owner dashboard.
 - Initial agent input validation tests and CI workflow.
 
-**This is an implementation starting point, not a completed or production-ready network.** Invitation issuance/redemption, organization workflows, field-level disclosure enforcement, grant lifecycle, approval protocol, discovery, evidence, messaging, external A2A/MCP integrations, regional deployment, and operational security controls remain to be built and tested.
+**This is an implementation starting point, not a completed or production-ready network.** Invitation issuance/redemption, organization member invitations/role administration, field-level disclosure enforcement, grant lifecycle, approval protocol, discovery, evidence, messaging, external A2A/MCP integrations, regional deployment, and operational security controls remain to be built and tested.
 
 No production deployment, security certification, legal compliance assessment, customer commitment, market demand, funding, or partnership is claimed. A code file is not considered complete until it is installed, typechecked, tested, and exercised against a real database.
 
