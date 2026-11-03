@@ -33,6 +33,7 @@ export async function POST(request: Request) {
       workerId: randomUUID(),
     });
     if (result.status === "DISABLED") return apiError("WORKER_DISABLED", 503);
+    if (result.status === "THROTTLED") return apiError("WORKER_DAILY_LIMIT", 429);
     return Response.json({ data: result }, {
       headers: { "Cache-Control": "no-store" },
     });
