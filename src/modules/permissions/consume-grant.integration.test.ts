@@ -9,6 +9,8 @@ const suffix = randomUUID();
 const userId = `grant-test-user-${suffix}`;
 const agentId = `grant-test-agent-${suffix}`;
 const grantId = `grant-test-grant-${suffix}`;
+const revokedGrantId = `grant-test-revoked-${suffix}`;
+const expiredGrantId = `grant-test-expired-${suffix}`;
 
 suite("permission grant consumption (PostgreSQL integration)", () => {
   beforeAll(async () => {
@@ -28,8 +30,9 @@ suite("permission grant consumption (PostgreSQL integration)", () => {
         purpose: "Integration test fixture only",
       },
     });
-    await prisma.permissionGrant.create({
-      data: {
+    await prisma.permissionGrant.createMany({
+      data: [
+        {
         id: grantId,
         agentId,
         purpose: "Test bounded permission consumption safely",
@@ -38,12 +41,36 @@ suite("permission grant consumption (PostgreSQL integration)", () => {
         dataScope: ["PUBLIC_PROFILE"],
         expiresAt: new Date(Date.now() + 60_000),
         maxUses: 5,
-      },
+        },
+        {
+          id: revokedGrantId,
+          agentId,
+          purpose: "Revocation integration fixture",
+          actionScope: ["SEARCH_PUBLIC_WEB"],
+          targetScope: ["example.invalid"],
+          dataScope: ["PUBLIC_PROFILE"],
+          expiresAt: new Date(Date.now() + 60_000),
+          maxUses: 3,
+          status: "REVOKED",
+          revokedAt: new Date(),
+        },
+        {
+          id: expiredGrantId,
+          agentId,
+          purpose: "Expiry integration fixture",
+          actionScope: ["SEARCH_PUBLIC_WEB"],
+          targetScope: ["example.invalid"],
+          dataScope: ["PUBLIC_PROFILE"],
+          expiresAt: new Date(Date.now() - 60_000),
+          maxUses: 3,
+        },
+      ],
     });
   });
 
   afterAll(async () => {
     await prisma.auditEvent.deleteMany({ where: { agentId } });
+    await prisma.permissionGrant.deleteMany({ where: { agentId } });
     await prisma.agent.deleteMany({ where: { id: agentId } });
     await prisma.user.deleteMany({ where: { id: userId } });
   });
@@ -75,6 +102,40 @@ suite("permission grant consumption (PostgreSQL integration)", () => {
       where: { agentId, action: "permission_grant.use_consumed" },
     });
     expect(auditEvents).toBe(5);
+  });
+
+  it("refuses consumption after a grant has been revoked", async () => {
+    const result = await consumePermissionGrantUse({
+      grantId: revokedGrantId,
+      agentId,
+      actorUserId: userId,
+      action: "SEARCH_PUBLIC_WEB",
+      target: "example.invalid",
+      dataScope: "PUBLIC_PROFILE",
+    });
+    expect(result.status).toBe("REVOKED");
+    const stored = await prisma.permissionGrant.findUniqueOrThrow({
+      where: { id: revokedGrantId },
+      select: { uses: true },
+    });
+    expect(stored.uses).toBe(0);
+  });
+
+  it("refuses consumption after grant expiry", async () => {
+    const result = await consumePermissionGrantUse({
+      grantId: expiredGrantId,
+      agentId,
+      actorUserId: userId,
+      action: "SEARCH_PUBLIC_WEB",
+      target: "example.invalid",
+      dataScope: "PUBLIC_PROFILE",
+    });
+    expect(result.status).toBe("EXPIRED");
+    const stored = await prisma.permissionGrant.findUniqueOrThrow({
+      where: { id: expiredGrantId },
+      select: { uses: true },
+    });
+    expect(stored.uses).toBe(0);
   });
 
   it("does not consume a use when the requested target is outside the grant", async () => {
