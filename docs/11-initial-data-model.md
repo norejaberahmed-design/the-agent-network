@@ -43,7 +43,9 @@ The following must be enforced in the database migration, not only in TypeScript
 ## 4. Application transaction boundaries
 
 - Agent creation and its audit event commit in one database transaction.
+- Agent creation also initializes conservative field policies in the same transaction.
 - Grant creation/revocation and its audit event commit in one transaction.
+- Field-policy changes, configuration version increments, and audit events commit in one transaction.
 - Invitation reservation/redemption and membership creation must be concurrency-safe and atomic.
 - A future external action uses an outbox record written in the same transaction as its approved state transition; the worker revalidates authorization immediately before dispatch.
 - Never call an external provider inside a database transaction.
@@ -72,5 +74,7 @@ The following must be enforced in the database migration, not only in TypeScript
 - Organization role enforcement currently covers membership-scoped agent listing and creation for OWNER, ADMIN, and AGENT_MANAGER; invitations, role changes, offboarding, and ownership transfer remain pending.
 - Personal and organization-owned agent creation/listing are implemented. New agents receive conservative default field policies.
 - Invitation issuance and single-use redemption are implemented with hashed tokens and a short-lived reservation state; concurrency, failure-recovery, and abuse tests remain pending.
-- Approval requests and exact-payload approval are not yet implemented.\n- Field-policy CRUD is implemented for the initial agent fields, but no outbound disclosure pipeline consumes these policies yet.
+- Scoped grant creation, listing, and revocation are implemented. Grant execution is disabled.
+- Field-policy CRUD is implemented for the initial agent fields, but no outbound disclosure pipeline consumes these policies yet.
+- Approval requests and exact-payload approval are not yet implemented.
 - Append-only audit immutability requires database-level controls and operational separation beyond the initial ORM model.
