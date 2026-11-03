@@ -237,7 +237,7 @@ export async function POST(request: Request, context: RouteContext) {
             idempotencyKey: input.idempotencyKey,
           },
         },
-        select: { id: true, requestDigest: true, status: true, createdAt: true },
+        select: { id: true, agentId: true, requestDigest: true, status: true, createdAt: true },
       });
       if (duplicate?.agentId === agentId && duplicate.requestDigest === requestDigest) {
         return Response.json(
