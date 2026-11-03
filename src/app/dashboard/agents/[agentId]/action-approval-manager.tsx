@@ -58,6 +58,7 @@ export function ActionApprovalManager({
         `/api/v1/agents/${encodeURIComponent(agentId)}/approvals`,
         { cache: "no-store" },
       );
+      const body = await response.json();
       if (!response.ok) {
         setError("تعذر تحميل طلبات الموافقة.");
         return;
@@ -107,7 +108,6 @@ export function ActionApprovalManager({
           }),
         },
       );
-      const body = await response.json();
       if (!response.ok) {
         setError(response.status === 403
           ? "نطاق الإجراء أو الهدف أو البيانات غير مشمول في الصلاحية."
