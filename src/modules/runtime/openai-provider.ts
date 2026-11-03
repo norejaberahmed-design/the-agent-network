@@ -303,6 +303,19 @@ export function mayContainChildSexualAbuse(text: string): boolean {
     (childSignals.test(normalized) && sexualSignals.test(normalized));
 }
 
+export function mayContainCredentialOrSecret(text: string): boolean {
+  const patterns = [
+    /\\b(?:password|passwd|api[_-]?key|secret|access[_-]?token)\\s*[:=]\\s*[^\\s]+/iu,
+    /\\bsk-[A-Za-z0-9]{20,}\\b/u,
+    /\\bgh[pousr]_[A-Za-z0-9]{20,}\\b/u,
+    /\\bAKIA[0-9A-Z]{16}\\b/u,
+    /\\bBearer\\s+[A-Za-z0-9._~+/-]{20,}/iu,
+    /كلمة\\s*المرور\\s*[:=]\\s*[^\\s]+/u,
+    /مفتاح\\s*(?:الواجهة|api)\\s*[:=]\\s*[^\\s]+/iu,
+  ];
+  return patterns.some((pattern) => pattern.test(text));
+}
+
 export function safetyIdentifierForUser(userId: string): string {
   return createHash("sha256").update(userId).digest("hex");
 }
