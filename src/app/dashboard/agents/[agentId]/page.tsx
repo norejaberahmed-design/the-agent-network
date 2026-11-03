@@ -77,7 +77,7 @@ export default async function AgentDetailPage({
       plannedAt: true,
       steps: {
         orderBy: { ordinal: "asc" },
-        select: { stepId: true, ordinal: true, action: true, description: true, input: true, status: true },
+        select: { stepId: true, ordinal: true, action: true, description: true, status: true },
       },
       createdAt: true,
     },
