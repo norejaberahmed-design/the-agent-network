@@ -271,6 +271,64 @@ suite("agent worker (PostgreSQL integration)", () => {
     await prisma.agent.update({ where: { id: agentId }, data: { status: "ACTIVE" } });
   });
 
+  it("discards a provider result when a grant is revoked during planning", async () => {
+    const run = await createRun({ idempotencyKey: `worker-revoked-during-plan-${suffix}` });
+    const provider: AgentPlanProvider = {
+      generatePlan: vi.fn(async () => {
+        await prisma.permissionGrant.update({
+          where: { id: grantId },
+          data: { status: "REVOKED", revokedAt: new Date(), version: { increment: 1 } },
+        });
+        await prisma.agent.update({ where: { id: agentId }, data: { configurationVersion: { increment: 1 } } });
+        return plan;
+      }),
+    };
+
+    const result = await runAgentWorkerOnce({
+      prisma,
+      provider,
+      moderator: successfulModerator(),
+      workerId: "worker-revoked-during-plan",
+    });
+
+    expect(result).toMatchObject({ status: "CANCELLED", runId: run.id });
+    const saved = await prisma.agentRun.findUniqueOrThrow({ where: { id: run.id } });
+    expect(saved.status).toBe("CANCELLED");
+    const grant = await prisma.permissionGrant.findUniqueOrThrow({ where: { id: grantId } });
+    expect(grant.reservedUses).toBe(0);
+    await prisma.permissionGrant.update({
+      where: { id: grantId },
+      data: { status: "ACTIVE", revokedAt: null, version: 1 },
+    });
+    await prisma.agent.update({ where: { id: agentId }, data: { configurationVersion: 1 } });
+  });
+
+  it("does not claim the same run concurrently while another worker holds its lease", async () => {
+    const run = await createRun({ idempotencyKey: `worker-concurrency-${suffix}` });
+    let resolvePlan!: (value: unknown) => void;
+    const provider: AgentPlanProvider = {
+      generatePlan: vi.fn(() => new Promise((resolve) => { resolvePlan = resolve; })),
+    };
+    const firstWorker = runAgentWorkerOnce({
+      prisma,
+      provider,
+      moderator: successfulModerator(),
+      workerId: "worker-first",
+    });
+    await vi.waitFor(() => expect(provider.generatePlan).toHaveBeenCalledOnce());
+
+    const secondResult = await runAgentWorkerOnce({
+      prisma,
+      provider: successfulProvider(),
+      moderator: successfulModerator(),
+      workerId: "worker-second",
+    });
+    expect(secondResult).toEqual({ status: "IDLE" });
+    resolvePlan(plan);
+    const firstResult = await firstWorker;
+    expect(firstResult).toMatchObject({ status: "PLANNED", runId: run.id });
+  });
+
   it("enforces the configured global daily queue ceiling before claiming", async () => {
     process.env.OPENAI_AGENT_MAX_DAILY_RUNS = "0";
     const run = await createRun({ idempotencyKey: `worker-daily-cap-${suffix}` });
