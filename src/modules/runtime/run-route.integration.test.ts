@@ -36,6 +36,7 @@ const payload = (overrides: Record<string, unknown> = {}) => ({
   purpose: "Research public suppliers for the owner.",
   target: "PUBLIC_WEB",
   idempotencyKey: `run-request-key-${suffix}`,
+  providerConsent: true,
   ...overrides,
 });
 const request = (body: unknown) => new Request("http://localhost/api/v1/agents/runs", {
