@@ -45,7 +45,7 @@ export async function POST(request: Request, context: RouteContext) {
 
   const { agentId } = await context.params;
   const access = await getAgentAccess(agentId, session.user.id);
-  if (!access?.canManage) return apiError("FORBIDDEN", 403);
+  if (!access?.canManageFieldPolicies) return apiError("FORBIDDEN", 403);
 
   let input: unknown;
   try {
