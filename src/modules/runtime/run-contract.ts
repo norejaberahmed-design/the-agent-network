@@ -13,8 +13,9 @@ export const createAgentRunSchema = z.object({
 
 export type CreateAgentRunInput = z.infer<typeof createAgentRunSchema>;
 
-export function digestAgentRunRequest(input: CreateAgentRunInput): string {
+export function digestAgentRunRequest(input: CreateAgentRunInput, agentId: string): string {
   const canonical = JSON.stringify({
+    agentId,
     task: input.task,
     purpose: input.purpose,
     target: input.target,
