@@ -3,6 +3,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 vi.mock("@/modules/runtime/worker", () => ({
   runAgentWorkerOnce: vi.fn(),
 }));
+vi.mock("@/modules/runtime/retention", () => ({
+  purgeExpiredAgentRuns: vi.fn(async () => ({ deleted: 0, cancelled: 0 })),
+}));
 
 import { runAgentWorkerOnce } from "@/modules/runtime/worker";
 import { POST } from "@/app/api/internal/agent-worker/route";
