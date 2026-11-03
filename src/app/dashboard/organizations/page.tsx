@@ -39,7 +39,7 @@ export default async function OrganizationsPage() {
         <div className="list">
           {memberships.map(({ organization, role }) => (
             <article className="agent-row" key={organization.id}>
-              <div><strong>{organization.name}</strong><p className="muted" style={{ margin: "5px 0 0", fontSize: 12 }}>{organization.slug}</p></div>
+              <div><Link href={`/dashboard/organizations/${organization.id}`}><strong>{organization.name}</strong></Link><p className="muted" style={{ margin: "5px 0 0", fontSize: 12 }}>{organization.slug}</p></div>
               <span className="pill">{role}</span>
             </article>
           ))}
