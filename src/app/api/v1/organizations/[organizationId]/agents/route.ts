@@ -98,6 +98,35 @@ export async function POST(request: Request, context: RouteContext) {
       },
     });
 
+    await tx.agentFieldPolicy.createMany({
+      data: [
+        {
+          agentId: created.id,
+          fieldKey: "name",
+          classification: "PUBLIC",
+          publicVisible: false,
+          allowedPurposes: [],
+          allowedAudiences: [],
+        },
+        {
+          agentId: created.id,
+          fieldKey: "publicDescription",
+          classification: "PUBLIC",
+          publicVisible: false,
+          allowedPurposes: [],
+          allowedAudiences: [],
+        },
+        {
+          agentId: created.id,
+          fieldKey: "purpose",
+          classification: "PRIVATE",
+          publicVisible: false,
+          allowedPurposes: [],
+          allowedAudiences: [],
+        },
+      ],
+    });
+
     await tx.auditEvent.create({
       data: {
         actorUserId: session.user.id,
