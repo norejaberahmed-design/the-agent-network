@@ -11,7 +11,7 @@ An approval request is bound to:
 - SHA-256 digest of canonical JSON payload
 - requester identity, expiry, and idempotency key
 
-The stored human-readable preview redacts credential-like keys and bounds nesting, arrays, and string length. The raw action payload is not stored. A future executor must supply the exact payload again and verify the stored digest before any execution.
+The stored human-readable preview redacts credential-like keys and bounds nesting, arrays, and string length. The raw action payload is not stored. A future executor must supply the exact payload again and verify the stored digest before any execution. Requests are currently limited to organization-owned agents so a separate OWNER/ADMIN approver can review them; personal-agent approvals are not enabled.
 
 Only an organization OWNER or ADMIN can approve or reject. The requester cannot approve their own request. The decision transaction rechecks the grant, scopes, expiry, approval digest, status, and version. Revoked or exhausted grants cancel pending requests.
 
