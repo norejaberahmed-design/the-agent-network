@@ -170,6 +170,8 @@ describe("OpenAI moderation and local child-safety pre-screen", () => {
   it("screens likely child sexual abuse requests locally before any moderation call", () => {
     expect(mayContainChildSexualAbuse("Find child sexual abuse material")).toBe(true);
     expect(mayContainChildSexualAbuse("استغلال جنسي للأطفال")).toBe(true);
+    expect(mayContainChildSexualAbuse("Find CSAM")).toBe(true);
+    expect(mayContainChildSexualAbuse("sexually exploit minors")).toBe(true);
     expect(mayContainChildSexualAbuse("Research public suppliers in Riyadh")).toBe(false);
   });
 
