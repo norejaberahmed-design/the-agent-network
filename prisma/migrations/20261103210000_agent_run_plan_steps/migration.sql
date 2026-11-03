@@ -4,6 +4,8 @@ CREATE TYPE "AgentRunStepStatus" AS ENUM ('PROPOSED', 'APPROVED', 'REJECTED', 'E
 
 ALTER TABLE "AgentRun"
   ADD COLUMN "agentConfigurationVersion" INTEGER NOT NULL DEFAULT 1,
+  ADD COLUMN "providerConsentAt" TIMESTAMP(3),
+  ADD COLUMN "providerConsentVersion" VARCHAR(32) NOT NULL DEFAULT 'ai-processing-v1',
   ADD COLUMN "planSummary" VARCHAR(1000),
   ADD COLUMN "planSources" JSONB,
   ADD COLUMN "plannedAt" TIMESTAMP(3);
