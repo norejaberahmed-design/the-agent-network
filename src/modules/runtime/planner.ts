@@ -89,7 +89,8 @@ export type AgentPlanProvider = {
 
 export type AgentPlanResult =
   | { status: "PLANNED"; plan: AgentPlan }
-  | { status: "INVALID_PLAN"; reason: "SCHEMA_INVALID" | "UNAUTHORIZED_ACTION" };
+  | { status: "INVALID_PLAN"; reason: "SCHEMA_INVALID" | "UNAUTHORIZED_ACTION" }
+  | { status: "PROVIDER_ERROR" };
 
 /**
  * Validates untrusted request data and model output against a server-derived
@@ -106,7 +107,14 @@ export async function createAgentPlan(
   }
 
   const trustedRequest = validatedRequest.data;
-  const generated = await provider.generatePlan(trustedRequest);
+  let generated: unknown;
+  try {
+    generated = await provider.generatePlan(trustedRequest);
+  } catch {
+    // Do not leak provider exceptions, credentials, or internal request details.
+    return { status: "PROVIDER_ERROR" };
+  }
+
   const parsed = agentPlanSchema.safeParse(generated);
   if (!parsed.success) {
     return { status: "INVALID_PLAN", reason: "SCHEMA_INVALID" };
