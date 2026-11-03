@@ -83,6 +83,24 @@ describe("agent planning boundary", () => {
     expect(result).toEqual({ status: "INVALID_PLAN", reason: "SCHEMA_INVALID" });
   });
 
+  it("rejects malformed request data before calling the provider", async () => {
+    const generatePlan = vi.fn(async () => ({
+      summary: "No-op.",
+      steps: [{ id: "step-1", action: "ASK_OWNER", description: "Ask owner.", input: {} }],
+    }));
+    const invalidRequest = {
+      ...request,
+      trustedContext: {
+        ...request.trustedContext,
+        allowedActions: ["SEARCH_PUBLIC_WEB", "SEARCH_PUBLIC_WEB"],
+      },
+    } as unknown as AgentPlanningRequest;
+    const result = await createAgentPlan({ generatePlan }, invalidRequest);
+
+    expect(result).toEqual({ status: "INVALID_PLAN", reason: "SCHEMA_INVALID" });
+    expect(generatePlan).not.toHaveBeenCalled();
+  });
+
   it("rejects oversized task and source payloads before calling the provider", async () => {
     const generatePlan = vi.fn(async () => ({
       summary: "No-op.",
