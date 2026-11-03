@@ -432,6 +432,7 @@ export async function runAgentWorkerOnce(args: {
 
     await tx.agentRunStep.createMany({
       data: planned.plan.steps.map((step, ordinal) => ({
+        id: randomUUID(),
         runId: current.id,
         stepId: step.id,
         ordinal,
