@@ -42,13 +42,13 @@ export async function POST(request: Request, context: RouteContext) {
     if (changed.count !== 1) return { state: "CONFLICT" as const };
 
     const queuedRuns = await tx.agentRun.findMany({
-      where: { agentId, status: "QUEUED", grantIds: { has: grantId } },
+      where: { agentId, status: { in: ["QUEUED", "PLANNING"] }, grantIds: { has: grantId } },
       select: { id: true, grantIds: true },
     });
     for (const run of queuedRuns) {
       const cancelled = await tx.agentRun.updateMany({
-        where: { id: run.id, agentId, status: "QUEUED" },
-        data: { status: "CANCELLED", cancelledAt: new Date(), errorCode: "GRANT_REVOKED" },
+        where: { id: run.id, agentId, status: { in: ["QUEUED", "PLANNING"] } },
+        data: { status: "CANCELLED", cancelledAt: new Date(), errorCode: "GRANT_REVOKED", workerId: null, claimedAt: null, leaseExpiresAt: null },
       });
       if (cancelled.count !== 1) continue;
       for (const reservedGrantId of run.grantIds) {
