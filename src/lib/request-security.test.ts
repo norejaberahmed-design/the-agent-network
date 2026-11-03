@@ -9,7 +9,7 @@ describe("isTrustedMutationRequest", () => {
     else process.env.BETTER_AUTH_URL = original;
   });
 
-  it("accepts a same-origin browser mutation", () => {
+  it("accepts a same-origin browser mutation within the declared size limit", async () => {
     process.env.BETTER_AUTH_URL = "https://network.example";
     const request = new Request("https://network.example/api/v1/agents", {
       method: "POST",
@@ -18,26 +18,28 @@ describe("isTrustedMutationRequest", () => {
         "sec-fetch-site": "same-origin",
         "content-length": "120",
       },
+      body: "x".repeat(120),
     });
-    expect(isTrustedMutationRequest(request)).toBe(true);
+    expect(await isTrustedMutationRequest(request)).toBe(true);
   });
 
-  it("rejects missing and cross-origin Origin headers", () => {
+  it("rejects missing and cross-origin Origin headers", async () => {
     process.env.BETTER_AUTH_URL = "https://network.example";
     expect(
-      isTrustedMutationRequest(new Request("https://network.example/api/v1/agents", { method: "POST" })),
+      await isTrustedMutationRequest(new Request("https://network.example/api/v1/agents", { method: "POST" })),
     ).toBe(false);
     expect(
-      isTrustedMutationRequest(
+      await isTrustedMutationRequest(
         new Request("https://network.example/api/v1/agents", {
           method: "POST",
           headers: { origin: "https://attacker.example" },
+          body: "{}",
         }),
       ),
     ).toBe(false);
   });
 
-  it("rejects cross-site fetches and oversized declared bodies", () => {
+  it("rejects cross-site fetches and oversized or malformed declared lengths", async () => {
     process.env.BETTER_AUTH_URL = "https://network.example";
     const crossSite = new Request("https://network.example/api/v1/agents", {
       method: "POST",
@@ -46,8 +48,37 @@ describe("isTrustedMutationRequest", () => {
     const oversized = new Request("https://network.example/api/v1/agents", {
       method: "POST",
       headers: { origin: "https://network.example", "content-length": "40000" },
+      body: "x",
     });
-    expect(isTrustedMutationRequest(crossSite)).toBe(false);
-    expect(isTrustedMutationRequest(oversized)).toBe(false);
+    const malformed = new Request("https://network.example/api/v1/agents", {
+      method: "POST",
+      headers: { origin: "https://network.example", "content-length": "unknown" },
+      body: "{}",
+    });
+    expect(await isTrustedMutationRequest(crossSite)).toBe(false);
+    expect(await isTrustedMutationRequest(oversized)).toBe(false);
+    expect(await isTrustedMutationRequest(malformed)).toBe(false);
+  });
+
+  it("enforces the byte limit when Content-Length is absent", async () => {
+    process.env.BETTER_AUTH_URL = "https://network.example";
+    const oversized = new Request("https://network.example/api/v1/agents", {
+      method: "POST",
+      headers: { origin: "https://network.example" },
+      body: "x".repeat(32_769),
+    });
+    expect(oversized.headers.has("content-length")).toBe(false);
+    expect(await isTrustedMutationRequest(oversized)).toBe(false);
+  });
+
+  it("accepts streamed bodies without Content-Length when within the byte limit", async () => {
+    process.env.BETTER_AUTH_URL = "https://network.example";
+    const request = new Request("https://network.example/api/v1/agents", {
+      method: "POST",
+      headers: { origin: "https://network.example" },
+      body: "x".repeat(32_768),
+    });
+    expect(request.headers.has("content-length")).toBe(false);
+    expect(await isTrustedMutationRequest(request)).toBe(true);
   });
 });
