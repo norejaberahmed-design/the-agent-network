@@ -24,7 +24,7 @@ export default async function AgentDetailPage({
   const access = await getAgentAccess(agentId, session.user.id);
   if (!access) notFound();
 
-  const fieldPolicies = await prisma.agentFieldPolicy.findMany({
+  const fieldPolicies = access.canViewFieldPolicies ? await prisma.agentFieldPolicy.findMany({
     where: { agentId },
     select: {
       id: true,
@@ -38,7 +38,7 @@ export default async function AgentDetailPage({
       updatedAt: true,
     },
     orderBy: { fieldKey: "asc" },
-  });
+  }) : [];
 
   const grants = access.canViewGrants ? await prisma.permissionGrant.findMany({
     where: { agentId },
