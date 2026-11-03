@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { POST as createRun } from "../../app/api/v1/agents/[agentId]/runs/route";
 import { POST as cancelRun } from "../../app/api/v1/agents/[agentId]/runs/[runId]/cancel/route";
+import { POST as revokeGrant } from "../../app/api/v1/agents/[agentId]/grants/[grantId]/revoke/route";
 
 vi.mock("next/headers", () => ({
   headers: vi.fn(async () => new Headers()),
@@ -158,6 +159,24 @@ suite("agent run queue API (PostgreSQL integration)", () => {
       params: Promise.resolve({ agentId, runId: queuedRunId }),
     });
     expect(replay.status).toBe(409);
+  });
+
+  it("revoking a grant cancels dependent queued runs and releases all reservations", async () => {
+    setSessionUser(ownerId);
+    const queued = await createRun(
+      request(payload({ idempotencyKey: `grant-revoke-run-${suffix}` })),
+      context(agentId),
+    );
+    expect(queued.status).toBe(202);
+    const queuedBody = await queued.json();
+    const revoked = await revokeGrant(request({}), {
+      params: Promise.resolve({ agentId, grantId }),
+    });
+    expect(revoked.status).toBe(200);
+    const savedRun = await prisma.agentRun.findUniqueOrThrow({ where: { id: queuedBody.data.id } });
+    expect(savedRun).toMatchObject({ status: "CANCELLED", errorCode: "GRANT_REVOKED" });
+    const grant = await prisma.permissionGrant.findUniqueOrThrow({ where: { id: grantId } });
+    expect(grant).toMatchObject({ status: "REVOKED", reservedUses: 0 });
   });
 
   it("does not replay the same idempotency key across different agents", async () => {
