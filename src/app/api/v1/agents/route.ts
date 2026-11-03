@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
+import { apiError } from "@/lib/api-response";
+import { isTrustedMutationRequest } from "@/lib/request-security";
 import { prisma } from "@/lib/prisma";
 import { createAgentSchema } from "@/modules/agents/contract";
 
@@ -12,9 +14,11 @@ async function getAuthenticatedUser() {
 }
 
 export async function GET() {
+  if (!isTrustedMutationRequest(request)) return apiError("INVALID_ORIGIN", 403);
+
   const user = await getAuthenticatedUser();
   if (!user) {
-    return Response.json({ error: "UNAUTHENTICATED" }, { status: 401 });
+    return apiError("UNAUTHENTICATED", 401);
   }
 
   const agents = await prisma.agent.findMany({
@@ -35,7 +39,7 @@ export async function GET() {
     orderBy: { createdAt: "desc" },
   });
 
-  return Response.json({ data: agents });
+  return Response.json({ data: agents }, { headers: { "Cache-Control": "no-store" } });
 }
 
 export async function POST(request: Request) {
@@ -48,14 +52,13 @@ export async function POST(request: Request) {
   try {
     payload = await request.json();
   } catch {
-    return Response.json({ error: "INVALID_JSON" }, { status: 400 });
+    return apiError("INVALID_JSON", 400);
   }
 
   const parsed = createAgentSchema.safeParse(payload);
   if (!parsed.success) {
     return Response.json(
-      { error: "VALIDATION_FAILED", details: parsed.error.flatten() },
-      { status: 422 },
+      apiError("VALIDATION_FAILED", 422, parsed.error.flatten()),
     );
   }
 
