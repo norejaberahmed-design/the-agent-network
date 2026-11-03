@@ -74,6 +74,38 @@ export async function PATCH(request: Request, context: RouteContext) {
     });
     if (changed.count !== 1) return { state: "CONFLICT" as const };
 
+    const revokedInvitations = await tx.invitation.updateMany({
+      where: {
+        organizationId,
+        createdById: target.userId,
+        status: { in: ["PENDING", "RESERVED"] },
+      },
+      data: {
+        status: "REVOKED",
+        reservationId: null,
+        reservationExpiresAt: null,
+      },
+    });
+    if (revokedInvitations.count > 0) {
+      await tx.auditEvent.create({
+        data: {
+          actorUserId: session.user.id,
+          ownerType: "ORGANIZATION",
+          ownerId: organizationId,
+          action: "organization.member.invitations_revoked",
+          targetType: "Membership",
+          targetId: membershipId,
+          outcome: "COMPLETED",
+          correlationId: randomUUID(),
+          metadata: {
+            memberUserId: target.userId,
+            invitationCount: revokedInvitations.count,
+            reason: "ROLE_CHANGED",
+          },
+        },
+      });
+    }
+
     await tx.auditEvent.create({
       data: {
         actorUserId: session.user.id,
@@ -144,6 +176,38 @@ export async function DELETE(request: Request, context: RouteContext) {
       },
     });
     if (deleted.count !== 1) return { state: "CONFLICT" as const };
+
+    const revokedInvitations = await tx.invitation.updateMany({
+      where: {
+        organizationId,
+        createdById: target.userId,
+        status: { in: ["PENDING", "RESERVED"] },
+      },
+      data: {
+        status: "REVOKED",
+        reservationId: null,
+        reservationExpiresAt: null,
+      },
+    });
+    if (revokedInvitations.count > 0) {
+      await tx.auditEvent.create({
+        data: {
+          actorUserId: session.user.id,
+          ownerType: "ORGANIZATION",
+          ownerId: organizationId,
+          action: "organization.member.invitations_revoked",
+          targetType: "Membership",
+          targetId: membershipId,
+          outcome: "COMPLETED",
+          correlationId: randomUUID(),
+          metadata: {
+            memberUserId: target.userId,
+            invitationCount: revokedInvitations.count,
+            reason: "MEMBER_REMOVED",
+          },
+        },
+      });
+    }
 
     await tx.auditEvent.create({
       data: {
