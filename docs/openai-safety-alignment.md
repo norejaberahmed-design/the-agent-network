@@ -69,7 +69,7 @@ As of 2026-11-03, the published policy update marked effective 2026-11-20 is not
 
 - Implemented before this baseline: tenant-scoped ownership, capability/grant primitives, field-level disclosure controls, digest-bound human approvals, audit records, and a provider-neutral plan schema.
 - Implemented in this phase: bounded request validation, strict plan validation, unique step/source identifiers, server-provided action allowlist validation, and provider-failure handling that returns a generic safe result.
-- Not yet implemented: real provider integration, moderation, public abuse reporting workflow, production observability, full runtime persistence/worker, user-facing execution approvals, and external action executor.
+- Not yet implemented: worker/lease processing, real provider integration, moderation, public abuse reporting workflow, production observability, user-facing execution approvals, and external action executor. Persisted run queueing and owner cancellation are implemented, but execution remains disabled.
 - Therefore this repository is not yet production-ready and this document does not certify compliance. Each missing control is a release gate for the corresponding feature.
 
 ## Release gates
