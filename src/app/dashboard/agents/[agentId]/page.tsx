@@ -65,31 +65,35 @@ export default async function AgentDetailPage({
       <section className="hero" style={{ paddingTop: 28 }}>
         <div className="eyebrow">AGENT GOVERNANCE</div>
         <h1 style={{ fontSize: 36 }}>{access.agent.name}</h1>
-        <p className="lead">{access.agent.purpose}</p>
+        {access.canViewPrivate ? <p className="lead">{access.agent.purpose}</p> : <p className="lead">لديك صلاحية عرض معلومات الوكيل الأساسية فقط.</p>}
         <div className="actions">
           <span className="pill">{access.agent.status}</span>
           <span className="muted">{access.ownerType === "USER" ? "وكيل شخصي" : "وكيل مؤسسة"}</span>
           <span className="muted">الإصدار {access.agent.configurationVersion}</span>
         </div>
       </section>
-      <FieldPolicyManager
-        agentId={agentId}
-        canManage={access.canManage}
-        initialPolicies={fieldPolicies.map((policy) => ({
-          ...policy,
-          updatedAt: policy.updatedAt.toISOString(),
-        }))}
-      />
-      <GrantManager
-        agentId={agentId}
-        canManage={access.canManagePermissions}
-        initialGrants={grants.map((grant) => ({
-          ...grant,
-          expiresAt: grant.expiresAt.toISOString(),
-          createdAt: grant.createdAt.toISOString(),
-          revokedAt: grant.revokedAt?.toISOString() ?? null,
-        }))}
-      />
+      {access.canViewFieldPolicies ? (
+        <FieldPolicyManager
+          agentId={agentId}
+          canManage={access.canManage}
+          initialPolicies={fieldPolicies.map((policy) => ({
+            ...policy,
+            updatedAt: policy.updatedAt.toISOString(),
+          }))}
+        />
+      ) : null}
+      {access.canViewGrants ? (
+        <GrantManager
+          agentId={agentId}
+          canManage={access.canManagePermissions}
+          initialGrants={grants.map((grant) => ({
+            ...grant,
+            expiresAt: grant.expiresAt.toISOString(),
+            createdAt: grant.createdAt.toISOString(),
+            revokedAt: grant.revokedAt?.toISOString() ?? null,
+          }))}
+        />
+      ) : null}
     </main>
   );
 }
