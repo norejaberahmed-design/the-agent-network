@@ -111,9 +111,10 @@ async function validateLiveAuthorization(
     if (grant.actionScope.includes("SEARCH_PUBLIC_WEB")) granted.add("SEARCH_PUBLIC_WEB");
   }
 
-  const allowedActions = run.authorizedActions.filter((action) =>
-    (action === "READ_PUBLIC_PROFILE" && declared.has(action) && granted.has(action)) ||
-    (action === "SEARCH_PUBLIC_WEB" && declared.has(action) && granted.has(action))
+  const allowedActions = run.authorizedActions.filter(
+    (action): action is AgentPlanningRequest["trustedContext"]["allowedActions"][number] =>
+      (action === "READ_PUBLIC_PROFILE" && declared.has(action) && granted.has(action)) ||
+      (action === "SEARCH_PUBLIC_WEB" && declared.has(action) && granted.has(action))
   );
   if (allowedActions.length !== run.authorizedActions.length) return null;
 
