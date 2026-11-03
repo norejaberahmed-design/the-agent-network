@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - build/generate-prisma-baseline
+  pull_request:
+    branches:
+      - feature/agent-runtime-planning
 
 permissions:
   contents: write
