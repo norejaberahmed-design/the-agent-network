@@ -47,8 +47,8 @@ Versions must be pinned by the lockfile after dependency installation and securi
 1. Health/readiness endpoint.
 2. Invite-only authentication.
 3. User profile and session.
-4. Organization creation and membership roles.
-5. Agent create, list, view, pause, and owner-only configuration.
+4. Organization creation and owner membership.
+5. Personal and organization-owned agent create/list workflows with role-gated organization management.
 6. Field-level disclosure policy records.
 7. Permission grant create/revoke and audit trail.
 8. Basic owner dashboard in Arabic and English.
