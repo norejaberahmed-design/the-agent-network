@@ -372,6 +372,7 @@ export async function runAgentWorkerOnce(args: {
     planned.plan.summary,
     ...planned.plan.steps.map((step) => step.description),
     ...planned.plan.steps.flatMap((step) => Object.values(step.input).map(String)),
+    ...planned.plan.sources.map((source) => source.title),
   ].join("\n");
   if (moderationText.length > 16_000) {
     return failRun(prisma, claimed, workerId, "OUTPUT_TOO_LARGE", false, new Date());
