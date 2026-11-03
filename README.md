@@ -50,16 +50,21 @@ This repository is the engineering and product source of truth. Requirements, se
 
 ## Implementation status
 
-The `build/platform-foundation-v1` branch contains an initial application scaffold:
+The `build/platform-foundation-v1` branch contains an initial application foundation:
+
 - Next.js App Router + TypeScript.
 - PostgreSQL + Prisma data model.
 - Better Auth email/password sign-in with invitation-gated account creation and a one-time first-admin bootstrap.
-- Single-use, expiring invitation issuance and redemption, restricted to platform administrators.\n- Single-use, expiring invitation issuance and redemption, restricted to platform administrators.\n- Health liveness/readiness endpoints.
-- Authenticated personal-agent and organization-owned agent create/list APIs with membership role checks.\n- Organization creation with owner membership.\n- Agent governance page with scoped grant creation, listing, and revocation; grants are stored but cannot execute actions yet.\n- Field-level disclosure policy editor with server validation that prevents non-public classifications from being marked public.
-- Arabic-first landing page, sign-in page, and owner dashboard.
-- Initial agent input validation tests and CI workflow.
+- Single-use, expiring invitation issuance and redemption, restricted to platform administrators.
+- Health liveness/readiness endpoints.
+- Authenticated personal-agent and organization-owned agent create/list APIs with membership role checks.
+- Organization creation with owner membership.
+- Agent governance page with scoped grant creation, listing, and revocation. Grants are stored but cannot execute actions yet.
+- Field-level disclosure policy editor with server validation that prevents non-public classifications from being marked public.
+- Arabic-first landing page, sign-in, invitation, and owner workspace interfaces.
+- Unit tests, browser smoke tests, and a CI workflow definition.
 
-**This is an implementation starting point, not a completed or production-ready network.** Invitation issuance/redemption, organization member invitations/role administration, field-level disclosure enforcement, grant lifecycle, approval protocol, discovery, evidence, messaging, external A2A/MCP integrations, regional deployment, and operational security controls remain to be built and tested.
+**This is an early functional foundation, not a completed or production-ready network.** Organization member invitations/role administration, outbound disclosure enforcement, action execution, exact-payload approvals, discovery, evidence, messaging, external A2A/MCP integrations, regional deployment, and production security controls remain to be built and tested. The interface is Arabic-first; full English localization is not complete.
 
 No production deployment, security certification, legal compliance assessment, customer commitment, market demand, funding, or partnership is claimed. A code file is not considered complete until it is installed, typechecked, tested, and exercised against a real database.
 
@@ -82,6 +87,10 @@ Requirements: Node.js 22+, npm, Docker Compose.
 3. Install dependencies with `npm install`.
 4. Generate Prisma Client with `npm run db:generate`.
 5. Review and create the first migration with `npm run db:migrate`.
-6. Start the app with `npm run dev`.
+6. Set `TAN_BOOTSTRAP_ADMIN_EMAIL`, `TAN_BOOTSTRAP_ADMIN_PASSWORD`, and a random 32+ character `TAN_BOOTSTRAP_TOKEN`, then run `npm run admin:bootstrap`.
+7. Remove all `TAN_BOOTSTRAP_*` values from the runtime environment after bootstrap.
+8. Start the app with `npm run dev`.
+
+The initial administrator can sign in and issue invitations at `/admin/invitations`. Invitees register through the invitation link. Organization workspaces are available at `/dashboard/organizations`.
 
 Do not use `prisma db push` or `prisma migrate reset` against shared or production data. The initial schema still requires a reviewed migration with database-level ownership constraints before production use.
