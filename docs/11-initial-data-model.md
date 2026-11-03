@@ -71,6 +71,6 @@ The following must be enforced in the database migration, not only in TypeScript
 - Regional data-plane placement is not implemented.
 - Organization role enforcement is not yet exposed through application routes.
 - The first agent API only creates and lists agents owned directly by the signed-in user.
-- Invitation issuance/redemption workflow is not yet implemented.
+- Invitation issuance and single-use redemption are implemented with hashed tokens and a short-lived reservation state; concurrency, failure-recovery, and abuse tests remain pending.
 - Approval requests and exact-payload approval are not yet implemented.
 - Append-only audit immutability requires database-level controls and operational separation beyond the initial ORM model.
