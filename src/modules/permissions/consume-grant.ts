@@ -13,7 +13,7 @@ export type PermissionGrantUseInput = {
 
 export type PermissionGrantUseResult =
   | { status: "CONSUMED"; uses: number; correlationId: string }
-  | { status: "NOT_FOUND" | "REVOKED" | "EXPIRED" | "EXHAUSTED" | "SCOPE_DENIED" };
+  | { status: "NOT_FOUND" | "REVOKED" | "EXPIRED" | "EXHAUSTED" | "SCOPE_DENIED" | "CONFLICT" };
 
 function hasExactScope(values: string[], requested: string) {
   return values.includes(requested);
@@ -104,7 +104,7 @@ export async function consumePermissionGrantUse(
       if (current.maxUses !== null && current.uses >= current.maxUses) {
         return { status: "EXHAUSTED" };
       }
-      return { status: "EXHAUSTED" };
+      return { status: "CONFLICT" };
     }
 
     await tx.auditEvent.create({
@@ -126,7 +126,6 @@ export async function consumePermissionGrantUse(
           action: input.action,
           target: input.target,
           dataScope: input.dataScope,
-          purpose: grant.purpose,
         },
       },
     });
