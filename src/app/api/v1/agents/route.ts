@@ -14,12 +14,8 @@ async function getAuthenticatedUser() {
 }
 
 export async function GET() {
-  if (!isTrustedMutationRequest(request)) return apiError("INVALID_ORIGIN", 403);
-
   const user = await getAuthenticatedUser();
-  if (!user) {
-    return apiError("UNAUTHENTICATED", 401);
-  }
+  if (!user) return apiError("UNAUTHENTICATED", 401);
 
   const agents = await prisma.agent.findMany({
     where: { ownerType: "USER", userOwnerId: user.id },
@@ -39,14 +35,17 @@ export async function GET() {
     orderBy: { createdAt: "desc" },
   });
 
-  return Response.json({ data: agents }, { headers: { "Cache-Control": "no-store" } });
+  return Response.json(
+    { data: agents },
+    { headers: { "Cache-Control": "no-store" } },
+  );
 }
 
 export async function POST(request: Request) {
+  if (!isTrustedMutationRequest(request)) return apiError("INVALID_ORIGIN", 403);
+
   const user = await getAuthenticatedUser();
-  if (!user) {
-    return Response.json({ error: "UNAUTHENTICATED" }, { status: 401 });
-  }
+  if (!user) return apiError("UNAUTHENTICATED", 401);
 
   let payload: unknown;
   try {
@@ -57,9 +56,7 @@ export async function POST(request: Request) {
 
   const parsed = createAgentSchema.safeParse(payload);
   if (!parsed.success) {
-    return Response.json(
-      apiError("VALIDATION_FAILED", 422, parsed.error.flatten()),
-    );
+    return apiError("VALIDATION_FAILED", 422, parsed.error.flatten());
   }
 
   const correlationId = randomUUID();
