@@ -305,16 +305,16 @@ export function mayContainChildSexualAbuse(text: string): boolean {
 
 export function mayContainCredentialOrSecret(text: string): boolean {
   const patterns = [
-    /(?:^|\\b)[A-Z0-9_]*(?:API[_-]?KEY|PASSWORD|PASSWD|SECRET|ACCESS[_-]?TOKEN)\\s*[:=]\\s*[^\\s]+/iu,
-    /(?:password|passwd|api[_-]?key|secret|access[_-]?token)\\s*[:=]\\s*[^\\s]+/iu,
-    /\\bsk-(?:proj-|or-v1-)?[A-Za-z0-9_-]{20,}\\b/iu,
-    /\\bsk_(?:live|test)_[A-Za-z0-9]{16,}\\b/u,
-    /\\bAIza[0-9A-Za-z_-]{30,}\\b/u,
-    /\\bgh[pousr]_[A-Za-z0-9]{20,}\\b/u,
-    /\\bAKIA[0-9A-Z]{16}\\b/u,
-    /\\bBearer\\s+[A-Za-z0-9._~+/-]{20,}/iu,
-    /كلمة\\s*المرور\\s*[:=]\\s*[^\\s]+/u,
-    /مفتاح\\s*(?:الواجهة|api)\\s*[:=]\\s*[^\\s]+/iu,
+    /(?:^|\b)[A-Z0-9_]*(?:API[_-]?KEY|PASSWORD|PASSWD|SECRET|ACCESS[_-]?TOKEN)\s*[:=]\s*[^\s]+/iu,
+    /(?:password|passwd|api[_-]?key|secret|access[_-]?token)\s*[:=]\s*[^\s]+/iu,
+    /\bsk-(?:proj-|or-v1-)?[A-Za-z0-9_-]{20,}\b/iu,
+    /\bsk_(?:live|test)_[A-Za-z0-9]{16,}\b/u,
+    /\bAIza[0-9A-Za-z_-]{30,}\b/u,
+    /\bgh[pousr]_[A-Za-z0-9]{20,}\b/u,
+    /\bAKIA[0-9A-Z]{16}\b/u,
+    /\bBearer\s+[A-Za-z0-9._~+/-]{20,}/iu,
+    /كلمة\s*المرور\s*[:=]\s*[^\s]+/u,
+    /مفتاح\s*(?:الواجهة|api)\s*[:=]\s*[^\s]+/iu,
   ];
   return patterns.some((pattern) => pattern.test(text));
 }
