@@ -118,6 +118,7 @@ suite("exact-payload action approval workflow (PostgreSQL integration)", () => {
         organizationOwnerId: organizationId,
         name: "Approval Test Agent",
         purpose: "Test controlled action approval.",
+        status: "ACTIVE",
       },
     });
   });
