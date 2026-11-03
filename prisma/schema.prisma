@@ -313,7 +313,7 @@ model AgentRun {
   ownerType         AgentOwnerType
   ownerId           String
   agentConfigurationVersion Int @default(1)
-  providerConsentAt DateTime
+  providerConsentAt DateTime?
   providerConsentVersion String @default("ai-processing-v1") @db.VarChar(32)
   task              String         @db.VarChar(4000)
   purpose           String         @db.VarChar(300)
