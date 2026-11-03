@@ -57,6 +57,15 @@ enum AuditOutcome {
   FAILED
 }
 
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  EXPIRED
+  CONSUMED
+  CANCELLED
+}
+
 model User {
   id            String       @id @default(cuid())
   name          String
@@ -72,6 +81,8 @@ model User {
   ownedAgents   Agent[]      @relation("UserOwnedAgents")
   invitations   Invitation[] @relation("InvitationCreatedBy")
   auditEvents   AuditEvent[] @relation("AuditActor")
+  approvalRequestsCreated ActionApproval[] @relation("ApprovalRequester")
+  approvalRequestsDecided ActionApproval[] @relation("ApprovalApprover")
 }
 
 model Session {
@@ -128,6 +139,7 @@ model Organization {
   memberships Membership[]
   agents      Agent[]
   invitations Invitation[]
+  actionApprovals ActionApproval[]
 }
 
 model Membership {
@@ -185,6 +197,7 @@ model Agent {
   fieldPolicies     AgentFieldPolicy[]
   grants            PermissionGrant[]
   auditEvents       AuditEvent[]
+  actionApprovals    ActionApproval[]
 
   @@index([ownerType, userOwnerId])
   @@index([ownerType, organizationOwnerId])
@@ -235,8 +248,46 @@ model PermissionGrant {
   createdAt      DateTime    @default(now())
   revokedAt      DateTime?
   agent          Agent       @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  actionApprovals ActionApproval[]
 
   @@index([agentId, status, expiresAt])
+}
+
+model ActionApproval {
+  id              String         @id @default(cuid())
+  agentId         String
+  organizationId  String?
+  grantId         String
+  requesterUserId String
+  approverUserId  String?
+  actionType      String
+  recipient       String
+  payloadDigest   String         @db.VarChar(64)
+  approvalDigest  String         @db.VarChar(64)
+  payloadPreview  Json
+  idempotencyKey  String         @unique
+  status          ApprovalStatus @default(PENDING)
+  expiresAt       DateTime
+  approvedAt      DateTime?
+  rejectedAt      DateTime?
+  consumedAt      DateTime?
+  cancelledAt     DateTime?
+  decisionReason  String?
+  version         Int            @default(1)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  agent           Agent          @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  organization    Organization?  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  grant           PermissionGrant @relation(fields: [grantId], references: [id], onDelete: Cascade)
+  requester       User           @relation("ApprovalRequester", fields: [requesterUserId], references: [id], onDelete: Cascade)
+  approver        User?          @relation("ApprovalApprover", fields: [approverUserId], references: [id], onDelete: SetNull)
+
+  @@index([agentId, status, expiresAt])
+  @@index([organizationId, status, expiresAt])
+  @@index([grantId, status])
+  @@index([requesterUserId, status])
+  @@index([approverUserId, status])
+  @@index([status, expiresAt])
 }
 
 model AuditEvent {
