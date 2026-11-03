@@ -22,12 +22,12 @@ function validWorkerSecret(request: Request): boolean {
 export async function POST(request: Request) {
   if (!validWorkerSecret(request)) return apiError("UNAUTHENTICATED", 401);
 
-  const retention = await purgeExpiredAgentRuns(prisma);
-  const apiKey = process.env.OPENAI_API_KEY;
-  const model = process.env.OPENAI_AGENT_MODEL;
-  if (!apiKey || !model) return apiError("WORKER_DISABLED", 503);
-
   try {
+    const retention = await purgeExpiredAgentRuns(prisma);
+    const apiKey = process.env.OPENAI_API_KEY;
+    const model = process.env.OPENAI_AGENT_MODEL;
+    if (!apiKey || !model) return apiError("WORKER_DISABLED", 503);
+
     const result = await runAgentWorkerOnce({
       prisma,
       provider: new OpenAIResponsesPlanProvider(apiKey, model),
