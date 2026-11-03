@@ -160,4 +160,18 @@ describe("agent field disclosure projection", () => {
     expect(result.profile).toEqual({});
     expect(result.decisions[0].reason).toBe("POLICY_AMBIGUOUS");
   });
+  it("does not claim to include a public field when its value is absent", () => {
+    const result = projectAgentDisclosure(
+      { ...agent, publicDescription: null },
+      [{ ...publicPolicy, fieldKey: "publicDescription" }],
+      context,
+    );
+    expect(result.profile).toEqual({});
+    expect(result.decisions[1]).toMatchObject({
+      fieldKey: "publicDescription",
+      included: false,
+      reason: "VALUE_UNAVAILABLE",
+    });
+  });
+
 });
