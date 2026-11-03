@@ -71,6 +71,7 @@ export async function PATCH(request: Request, context: RouteContext) {
             ownerType: true,
             userOwnerId: true,
             organizationOwnerId: true,
+            status: true,
           },
         },
         grant: {
@@ -160,6 +161,14 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     if (approval.expiresAt <= now) {
       return expireOrCancel("EXPIRED", "APPROVAL_EXPIRED", "action_approval.expired");
+    }
+
+    if (approval.agent.status !== "ACTIVE") {
+      return expireOrCancel(
+        "CANCELLED",
+        "AGENT_NOT_ACTIVE",
+        "action_approval.cancelled",
+      );
     }
 
     const grant = approval.grant;
