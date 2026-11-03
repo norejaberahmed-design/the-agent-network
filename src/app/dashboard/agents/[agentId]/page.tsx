@@ -71,6 +71,7 @@ export default async function AgentDetailPage({
       status: true,
       attemptCount: true,
       maxAttempts: true,
+      errorCode: true,
       planSummary: true,
       planSources: true,
       plannedAt: true,
