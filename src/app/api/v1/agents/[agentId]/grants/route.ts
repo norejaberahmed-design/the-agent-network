@@ -123,6 +123,11 @@ export async function POST(request: Request, context: RouteContext) {
       });
     }
 
+    await tx.agent.update({
+      where: { id: agentId },
+      data: { configurationVersion: { increment: 1 } },
+    });
+
     await tx.auditEvent.create({
       data: {
         actorUserId: session.user.id,
