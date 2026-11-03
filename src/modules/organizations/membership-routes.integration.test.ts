@@ -301,4 +301,33 @@ suite("organization membership management APIs (PostgreSQL integration)", () => 
     );
     expect(response.status).toBe(403);
   });
+  it("revokes pending invitations created by a member when the owner removes that member", async () => {
+    setSessionUser(ownerId);
+    const response = await removeMember(
+      request("http://localhost", "DELETE"),
+      contextForMember(organizationId, adminMembershipId),
+    );
+    expect(response.status).toBe(200);
+
+    const invitation = await prisma.invitation.findUniqueOrThrow({
+      where: { id: adminInvitationId },
+      select: { status: true, reservationId: true, reservationExpiresAt: true },
+    });
+    expect(invitation).toEqual({
+      status: "REVOKED",
+      reservationId: null,
+      reservationExpiresAt: null,
+    });
+    await expect(
+      prisma.auditEvent.count({
+        where: {
+          ownerId: organizationId,
+          action: "organization.member.invitations_revoked",
+          targetId: adminMembershipId,
+          actorUserId: ownerId,
+        },
+      }),
+    ).resolves.toBe(1);
+  });
+
 });
