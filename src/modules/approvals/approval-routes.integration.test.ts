@@ -70,7 +70,7 @@ async function createGrant(key: string) {
 }
 
 async function submitApproval(grantId: string, idempotencyKey: string, payload = { message: "Hello", apiKey: "sensitive-value" }) {
-  setSessionUser(managerId);
+  setSessionUser(adminId);
   return createApprovalRequest(
     postRequest({
       grantId,
@@ -162,7 +162,7 @@ suite("exact-payload action approval workflow (PostgreSQL integration)", () => {
         expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
       },
     });
-    setSessionUser(managerId);
+    setSessionUser(adminId);
     const denied = await createApprovalRequest(
       postRequest({
         grantId: badScopeGrant.id,
@@ -218,7 +218,7 @@ suite("exact-payload action approval workflow (PostgreSQL integration)", () => {
     const payload = await response.json();
     const approvalId = payload.data.id;
 
-    setSessionUser(managerId);
+    setSessionUser(adminId);
     const selfApproval = await decideApproval(
       patchRequest({ decision: "APPROVE" }),
       decisionContext(approvalId),
@@ -345,7 +345,7 @@ suite("exact-payload action approval workflow (PostgreSQL integration)", () => {
     });
   });
 
-  it("returns only the requester's own approvals to managers and the full queue to owners", async () => {
+  it("restricts approval queue access to owners and admins", async () => {
     const grant = await createGrant("queue");
     const response = await submitApproval(grant.id, `queue-key-${suffix}`);
     expect(response.status).toBe(201);
