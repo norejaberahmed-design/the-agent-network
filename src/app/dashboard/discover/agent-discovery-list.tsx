@@ -59,6 +59,11 @@ export function AgentDiscoveryList() {
                   {agent.profile.publicDescription}
                 </p>
               ) : null}
+              {agent.profile.purpose ? (
+                <p className="muted" style={{ margin: "6px 0 0" }}>
+                  الغرض: {agent.profile.purpose}
+                </p>
+              ) : null}
             </div>
             <span className="pill">ملف عام</span>
           </article>
