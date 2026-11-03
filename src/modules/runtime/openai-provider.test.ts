@@ -70,6 +70,7 @@ describe("OpenAI Responses provider", () => {
     const init = vi.mocked(fetcher).mock.calls[0][1];
     const payload = JSON.parse(String(init?.body));
     expect(payload.store).toBe(false);
+    expect(payload.max_tool_calls).toBe(1);
     expect(payload.safety_identifier).toBe(request.safetyIdentifier);
     expect(payload.text.format.type).toBe("json_schema");
     expect(payload.text.format.strict).toBe(true);
