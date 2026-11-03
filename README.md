@@ -59,7 +59,7 @@ The `build/platform-foundation-v1` branch contains an initial application founda
 - Health liveness/readiness endpoints.
 - Authenticated personal-agent and organization-owned agent create/list APIs with membership role checks.
 - Organization creation with owner membership.
-- Organization-scoped member invitations, member listing, least-privilege role changes, and member removal; offboarding revokes pending invitations issued by that member.
+- Organization-scoped member invitations, member listing, least-privilege role changes, and member removal; offboarding revokes pending invitations and active permission grants issued by that member.
 - Agent governance page with scoped grant creation, listing, and revocation. Grants are stored but cannot execute actions yet.
 - Field-level disclosure policy editor with server validation that prevents non-public classifications from being marked public.
 - Arabic-first landing page, sign-in, invitation, and owner workspace interfaces.
