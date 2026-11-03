@@ -62,9 +62,12 @@ The `build/platform-foundation-v1` branch contains an initial application founda
 - Agent governance page with scoped grant creation, listing, and revocation. Grants are stored but cannot execute actions yet.
 - Field-level disclosure policy editor with server validation that prevents non-public classifications from being marked public.
 - Arabic-first landing page, sign-in, invitation, and owner workspace interfaces.
-- Unit tests, browser smoke tests, and a CI workflow definition.
+- Proposed stacked changes add organization-scoped member invitations, role administration, and offboarding revocation of pending invitations and member-issued grants.
+- Proposed stacked changes add fail-closed field projection, owner-facing disclosure preview, authenticated local agent discovery, and guarded agent lifecycle publishing.
+- Proposed stacked changes add an organization audit log with action-specific metadata redaction.
+- Unit tests, PostgreSQL integration tests, browser smoke tests, and a CI workflow definition.
 
-**This is an early functional foundation, not a completed or production-ready network.** Organization member invitations/role administration, outbound disclosure enforcement, action execution, exact-payload approvals, discovery, evidence, messaging, external A2A/MCP integrations, regional deployment, and production security controls remain to be built and tested. The interface is Arabic-first; full English localization is not complete.
+**This is an early functional foundation, not a completed or production-ready network.** Enforcement across every outbound data boundary, action execution, exact-payload approvals, external discovery providers, evidence, messaging, external A2A/MCP integrations, regional deployment, rate limiting, and production security controls remain to be built and tested. The interface is Arabic-first; full English localization is not complete.
 
 No production deployment, security certification, legal compliance assessment, customer commitment, market demand, funding, or partnership is claimed. A code file is not considered complete until it is installed, typechecked, tested, and exercised against a real database.
 
