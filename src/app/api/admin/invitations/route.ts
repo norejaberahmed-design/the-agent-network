@@ -74,7 +74,7 @@ export async function POST(request: Request) {
       data: {
         ...issued.invitation,
         redemptionUrl: `${baseUrl}/accept-invitation#token=${issued.token}`,
-        token,
+        token: issued.token,
       },
       correlationId: issued.correlationId,
       warning: "The invitation token is shown once. Store and share it securely.",
