@@ -54,7 +54,7 @@ export async function POST(request: Request, context: RouteContext) {
 
   const { organizationId } = await context.params;
   const membership = await getMembership(organizationId, session.user.id);
-  if (!membership || !["OWNER", "ADMIN", "AGENT_MANAGER"].includes(membership.role)) {
+  if (!membership || (membership.role !== "OWNER" && membership.role !== "ADMIN" && membership.role !== "AGENT_MANAGER")) {
     return apiError("FORBIDDEN", 403);
   }
 
