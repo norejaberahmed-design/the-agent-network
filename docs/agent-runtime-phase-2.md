@@ -34,6 +34,6 @@ Status: implemented as a queueing boundary; execution remains disabled.
 3. Add provider adapters only after privacy minimization, budgets, timeouts, moderation, safety identifiers, and prompt-injection tests.
 4. Persist validated plan steps and connect approval requests to exact payload digests.
 5. Keep external execution disabled until approval, atomic grant consumption, idempotency, audit, and failure recovery pass end-to-end tests.
-6. Establish and rehearse the database migration baseline for existing environments before production migration deployment. The additive migration in this phase is not a substitute for baselining a pre-existing schema.
+6. The repository now includes an initial PostgreSQL baseline generated from the pre-runtime schema at the parent revision, followed by the additive agent-run migration. New empty databases can apply both with `npx prisma migrate deploy`. Existing databases previously created with `db push` must first be backed up and schema-compared, then explicitly baseline the initial migration with `npx prisma migrate resolve --applied 20261001000000_initial_schema` before applying later migrations. Never run this against production until the schema comparison, backup/restore rehearsal, and separate deployment approval are complete.
 
 No production database was migrated and no deployment was performed.
