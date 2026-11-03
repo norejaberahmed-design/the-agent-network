@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { headers } from "next/headers";
 import { z } from "zod";
+import type { Prisma } from "@prisma/client";
 import { auth } from "@/lib/auth";
 import { apiError } from "@/lib/api-response";
 import { isTrustedMutationRequest } from "@/lib/request-security";
@@ -122,6 +123,7 @@ export async function POST(request: Request, context: RouteContext) {
         actionType: true,
         recipient: true,
         payloadDigest: true,
+        requestedDataScope: true,
         status: true,
       },
     });
@@ -131,7 +133,9 @@ export async function POST(request: Request, context: RouteContext) {
         existing.grantId === parsed.data.grantId &&
         existing.actionType === parsed.data.actionType &&
         existing.recipient === parsed.data.recipient &&
-        existing.payloadDigest === payloadDigest;
+        existing.payloadDigest === payloadDigest &&
+        [...existing.requestedDataScope].sort().join("|") ===
+          [...parsed.data.requestedDataScope].sort().join("|");
       return sameRequest
         ? { state: "EXISTING" as const, id: existing.id, status: existing.status }
         : { state: "IDEMPOTENCY_CONFLICT" as const };
@@ -197,7 +201,7 @@ export async function POST(request: Request, context: RouteContext) {
         requestedDataScope: parsed.data.requestedDataScope,
         payloadDigest,
         approvalDigest,
-        payloadPreview: payloadPreview as never,
+        payloadPreview: payloadPreview as Prisma.InputJsonValue,
         idempotencyKey: parsed.data.idempotencyKey,
         expiresAt,
       },
