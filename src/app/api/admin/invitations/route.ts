@@ -11,6 +11,16 @@ export const runtime = "nodejs";
 const invitationSchema = z.object({
   email: z.string().trim().email().max(254).optional(),
   expiresInHours: z.number().int().min(1).max(168).default(72),
+  organizationId: z.string().trim().min(1).optional(),
+  role: z.enum(["ADMIN", "AGENT_MANAGER", "OPERATOR", "AUDITOR", "VIEWER"]).optional(),
+}).superRefine((value, context) => {
+  if (Boolean(value.organizationId) !== Boolean(value.role)) {
+    context.addIssue({
+      code: "custom",
+      path: ["role"],
+      message: "An organization invitation must include exactly one membership role.",
+    });
+  }
 });
 
 export async function POST(request: Request) {
@@ -41,6 +51,14 @@ export async function POST(request: Request) {
     return apiError("VALIDATION_FAILED", 422, parsed.error.flatten());
   }
 
+  if (parsed.data.organizationId) {
+    const organization = await prisma.organization.findUnique({
+      where: { id: parsed.data.organizationId },
+      select: { id: true },
+    });
+    if (!organization) return apiError("NOT_FOUND", 404);
+  }
+
   const token = randomBytes(32).toString("base64url");
   const tokenHash = createHash("sha256").update(token).digest("hex");
   const expiresAt = new Date(Date.now() + parsed.data.expiresInHours * 60 * 60 * 1000);
@@ -51,10 +69,12 @@ export async function POST(request: Request) {
       data: {
         tokenHash,
         intendedEmail: parsed.data.email?.toLowerCase() ?? null,
+        organizationId: parsed.data.organizationId ?? null,
+        role: parsed.data.role ?? null,
         expiresAt,
         createdById: session.user.id,
       },
-      select: { id: true, intendedEmail: true, expiresAt: true, status: true },
+      select: { id: true, intendedEmail: true, organizationId: true, role: true, expiresAt: true, status: true },
     });
 
     await tx.auditEvent.create({
@@ -65,7 +85,12 @@ export async function POST(request: Request) {
         targetId: created.id,
         outcome: "COMPLETED",
         correlationId,
-        metadata: { intendedEmail: created.intendedEmail, expiresAt: created.expiresAt.toISOString() },
+        metadata: {
+          intendedEmail: created.intendedEmail,
+          organizationId: created.organizationId,
+          role: created.role,
+          expiresAt: created.expiresAt.toISOString(),
+        },
       },
     });
     return created;
