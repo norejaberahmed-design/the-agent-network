@@ -382,6 +382,12 @@ export async function runAgentWorkerOnce(args: {
   if (moderationText.length > 16_000) {
     return failRun(prisma, claimed, workerId, "OUTPUT_TOO_LARGE", false, new Date());
   }
+  if (mayContainChildSexualAbuse(moderationText)) {
+    return failRun(prisma, claimed, workerId, "SAFETY_REVIEW_REQUIRED", false, new Date());
+  }
+  if (mayContainCredentialOrSecret(moderationText)) {
+    return failRun(prisma, claimed, workerId, "SENSITIVE_OUTPUT_BLOCKED", false, new Date());
+  }
 
   let outputModeration: { flagged: boolean };
   try {
