@@ -76,6 +76,7 @@ export async function PATCH(request: Request, context: RouteContext) {
         },
         grant: {
           select: {
+            agentId: true,
             status: true,
             revokedAt: true,
             expiresAt: true,
@@ -173,6 +174,7 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     const grant = approval.grant;
     const grantValid =
+      grant.agentId === approval.agentId &&
       grant.status === "ACTIVE" &&
       grant.revokedAt === null &&
       grant.expiresAt > now &&
