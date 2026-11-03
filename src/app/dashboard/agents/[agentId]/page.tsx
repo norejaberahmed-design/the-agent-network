@@ -122,7 +122,7 @@ export default async function AgentDetailPage({
                 status: grant.status,
                 expiresAt: grant.expiresAt.toISOString(),
               }))}
-          />
+          /> : null}
         </>
       ) : null}
     </main>
