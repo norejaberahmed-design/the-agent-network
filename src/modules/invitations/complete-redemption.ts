@@ -1,5 +1,4 @@
 import { randomUUID } from "node:crypto";
-import type { MembershipRole } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
 export type CompleteInvitationRedemptionInput = {
@@ -73,7 +72,7 @@ export async function completeInvitationRedemption(
         data: {
           organizationId: invitation.organizationId,
           userId: input.userId,
-          role: invitation.role as MembershipRole,
+          role: invitation.role,
         },
       });
     }
