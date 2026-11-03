@@ -31,7 +31,7 @@ No key or secret is stored in this repository. CI uses fake providers and does n
 - Grant reservations are consumed atomically only after a validated plan is saved. Failures and cancellations release reservations.
 - Grant revocation and owner cancellation can stop QUEUED or PLANNING runs. A provider response arriving after cancellation is discarded.
 - Provider and moderation failures fail closed. Transient errors use bounded exponential backoff.
-- The global run ceiling is a request-count guard, not a monetary spending guarantee. Set a hard project spend limit in the provider account before enabling paid inference.
+- Queue creation is capped at 10 requests per user per hour and 20 active QUEUED/PLANNING runs per agent. The worker also applies a global rolling 24-hour run ceiling. These are request-count guards, not monetary spending guarantees. Set a hard project spend limit in the provider account before enabling paid inference.
 
 ## OpenAI integration
 
