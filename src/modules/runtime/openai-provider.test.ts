@@ -130,6 +130,18 @@ describe("OpenAI Responses provider", () => {
     });
   });
 
+  it("classifies explicit model refusals as non-retryable policy blocks", async () => {
+    const provider = new OpenAIResponsesPlanProvider(
+      "test-key",
+      "test-model",
+      fakeFetch({ output: [{ type: "message", content: [{ type: "refusal", refusal: "I cannot help with that." }] }] }),
+    );
+    await expect(provider.generatePlan(request)).rejects.toMatchObject({
+      code: "PROVIDER_POLICY_BLOCKED",
+      retryable: false,
+    });
+  });
+
   it("requires explicit model and API configuration", async () => {
     const provider = new OpenAIResponsesPlanProvider("", "");
     await expect(provider.generatePlan(request)).rejects.toMatchObject({
