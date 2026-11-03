@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { OrganizationAgentCreateForm } from "./organization-agent-create-form";
+import { OrganizationMembersPanel } from "./organization-members-panel";
 
 export const dynamic = "force-dynamic";
 
@@ -29,6 +30,7 @@ export default async function OrganizationWorkspacePage({
   });
 
   const canManage = membership.role === "OWNER" || membership.role === "ADMIN" || membership.role === "AGENT_MANAGER";
+  const canManageMembers = membership.role === "OWNER" || membership.role === "ADMIN";
 
   return (
     <main className="shell">
@@ -41,6 +43,12 @@ export default async function OrganizationWorkspacePage({
         <h1 style={{ fontSize: 36 }}>{membership.organization.name}</h1>
         <p className="lead">العضوية الحالية: {membership.role}. ملكية وكلاء هذه المساحة تعود للمؤسسة.</p>
       </section>
+      {canManageMembers ? (
+        <OrganizationMembersPanel
+          organizationId={organizationId}
+          currentRole={membership.role}
+        />
+      ) : null}
       {canManage ? <OrganizationAgentCreateForm organizationId={organizationId} /> : <div className="panel"><p>لديك صلاحية العرض فقط. اطلب من مالك المؤسسة منحك دوراً إدارياً لإضافة الوكلاء.</p></div>}
       <section style={{ paddingBottom: 60 }}>
         <h2>وكلاء المؤسسة ({agents.length})</h2>
