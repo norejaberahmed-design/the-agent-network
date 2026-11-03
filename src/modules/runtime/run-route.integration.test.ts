@@ -132,7 +132,7 @@ suite("agent run queue API (PostgreSQL integration)", () => {
       request(payload({ idempotencyKey: `second-run-key-${suffix}` })),
       context(agentId),
     );
-    expect(overBudget.status).toBe(409);
+    expect(overBudget.status).toBe(403);
 
     const grant = await prisma.permissionGrant.findUniqueOrThrow({ where: { id: grantId } });
     expect(grant.reservedUses).toBe(1);
