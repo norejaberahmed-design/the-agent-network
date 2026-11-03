@@ -69,7 +69,7 @@ async function createGrant(key: string) {
   });
 }
 
-async function submitApproval(grantId: string, idempotencyKey: string, payload = { message: "Hello", apiKey: "sensitive-value" }) {
+async function submitApproval(grantId: string, idempotencyKey: string, payload: Record<string, unknown> = { message: "Hello", apiKey: "sensitive-value" }) {
   setSessionUser(adminId);
   return createApprovalRequest(
     postRequest({
