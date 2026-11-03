@@ -152,6 +152,14 @@ export async function POST(request: Request, context: RouteContext) {
       if (activeAgent.configurationVersion !== access.agent.configurationVersion) {
         throw new Error("AGENT_CONFIGURATION_CHANGED");
       }
+      const recentUserRuns = await tx.agentRun.count({
+        where: { requesterUserId: session.user.id, createdAt: { gte: new Date(now.getTime() - 60 * 60 * 1000) } },
+      });
+      if (recentUserRuns >= 10) throw new Error("USER_QUEUE_RATE_LIMIT");
+      const activeAgentRuns = await tx.agentRun.count({
+        where: { agentId, status: { in: ["QUEUED", "PLANNING"] } },
+      });
+      if (activeAgentRuns >= 20) throw new Error("AGENT_QUEUE_LIMIT");
       if (access.ownerType === "ORGANIZATION") {
         const membership = await tx.membership.findUnique({
           where: { organizationId_userId: { organizationId: access.ownerId, userId: session.user.id } },
