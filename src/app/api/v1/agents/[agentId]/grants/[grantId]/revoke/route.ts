@@ -41,6 +41,40 @@ export async function POST(request: Request, context: RouteContext) {
     });
     if (changed.count !== 1) return { state: "CONFLICT" as const };
 
+    const queuedRuns = await tx.agentRun.findMany({
+      where: { agentId, status: "QUEUED", grantIds: { has: grantId } },
+      select: { id: true, grantIds: true },
+    });
+    for (const run of queuedRuns) {
+      const cancelled = await tx.agentRun.updateMany({
+        where: { id: run.id, agentId, status: "QUEUED" },
+        data: { status: "CANCELLED", cancelledAt: new Date(), errorCode: "GRANT_REVOKED" },
+      });
+      if (cancelled.count !== 1) continue;
+      for (const reservedGrantId of run.grantIds) {
+        const released = await tx.permissionGrant.updateMany({
+          where: { id: reservedGrantId, agentId, reservedUses: { gt: 0 } },
+          data: { reservedUses: { decrement: 1 } },
+        });
+        if (released.count !== 1) throw new Error("GRANT_RESERVATION_MISSING");
+      }
+      await tx.auditEvent.create({
+        data: {
+          actorUserId: session.user.id,
+          agentId,
+          ownerType: access.ownerType,
+          ownerId: access.ownerId,
+          action: "agent.run.cancelled",
+          targetType: "AgentRun",
+          targetId: run.id,
+          outcome: "COMPLETED",
+          policyVersion: String(grant.version + 1),
+          correlationId,
+          metadata: { reason: "GRANT_REVOKED", releasedGrantReservations: run.grantIds.length },
+        },
+      });
+    }
+
     await tx.agent.update({
       where: { id: agentId },
       data: { configurationVersion: { increment: 1 } },
