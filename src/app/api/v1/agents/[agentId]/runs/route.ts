@@ -189,6 +189,7 @@ export async function POST(request: Request, context: RouteContext) {
           requesterUserId: session.user.id,
           ownerType: access.ownerType,
           ownerId: access.ownerId,
+          agentConfigurationVersion: access.agent.configurationVersion,
           task: input.task,
           purpose: input.purpose,
           target: input.target,
