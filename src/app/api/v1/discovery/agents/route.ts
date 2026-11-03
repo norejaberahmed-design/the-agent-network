@@ -23,9 +23,7 @@ export async function GET(request: Request) {
   const cursor = new URL(request.url).searchParams.get("cursor") ?? undefined;
   if (cursor && cursor.length > 128) return apiError("VALIDATION_FAILED", 422);
 
-  let agents;
-  try {
-    agents = await prisma.agent.findMany({
+  const agents = await prisma.agent.findMany({
       where: {
         status: "ACTIVE",
         discoverable: true,
@@ -49,10 +47,8 @@ export async function GET(request: Request) {
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       take: 20,
       ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
-    });
-  } catch {
-    return apiError("VALIDATION_FAILED", 422);
-  }
+    }).catch(() => null);
+  if (!agents) return apiError("VALIDATION_FAILED", 422);
 
   const data = agents.flatMap((agent) => {
     const policies: AgentDisclosurePolicy[] = agent.fieldPolicies
