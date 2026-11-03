@@ -425,4 +425,33 @@ suite("exact-payload action approval workflow (PostgreSQL integration)", () => {
     ).resolves.toBe(1);
   });
 
+  it("cancels pending approvals when the agent is paused", async () => {
+    const grant = await createGrant("agent-paused");
+    const response = await submitApproval(grant.id, `paused-agent-key-${suffix}`);
+    const payload = await response.json();
+    await prisma.agent.update({
+      where: { id: agentId },
+      data: { status: "PAUSED" },
+    });
+
+    setSessionUser(ownerId);
+    const decision = await decideApproval(
+      patchRequest({ decision: "APPROVE" }),
+      decisionContext(payload.data.id),
+    );
+    expect(decision.status).toBe(200);
+    const stored = await prisma.actionApproval.findUniqueOrThrow({
+      where: { id: payload.data.id },
+      select: { status: true, decisionReason: true },
+    });
+    expect(stored).toEqual({
+      status: "CANCELLED",
+      decisionReason: "AGENT_NOT_ACTIVE",
+    });
+    await prisma.agent.update({
+      where: { id: agentId },
+      data: { status: "ACTIVE" },
+    });
+  });
+
 });
