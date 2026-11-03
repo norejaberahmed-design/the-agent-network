@@ -36,3 +36,7 @@ The schema intentionally has no direct `SEND_MESSAGE`, payment, signature, accou
 6. Keep external execution disabled until an independently reviewed executor revalidates owner, grant, approval digest, recipient, and exact payload immediately before the side effect.
 
 No production database changes or external actions are part of this phase.
+
+
+## CI verification branch
+This branch exists only to run the repository's push-triggered validation workflow against the Phase 1 planning implementation. It is not a release branch.
