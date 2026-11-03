@@ -13,7 +13,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:integration": "RUN_DB_INTEGRATION=1 vitest run src/modules/permissions/consume-grant.integration.test.ts src/modules/agents/access.integration.test.ts "src/app/api/v1/organizations/[organizationId]/agents/route.integration.test.ts"",
+    "test:integration": "RUN_DB_INTEGRATION=1 vitest run src/modules/permissions/consume-grant.integration.test.ts src/modules/agents/access.integration.test.ts src/modules/agents/organization-agents-route.integration.test.ts",
     "test:e2e": "playwright test",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
