@@ -30,7 +30,6 @@ export default async function OrganizationWorkspacePage({
   });
 
   const canManage = membership.role === "OWNER" || membership.role === "ADMIN" || membership.role === "AGENT_MANAGER";
-  const canManageMembers = membership.role === "OWNER" || membership.role === "ADMIN";
 
   return (
     <main className="shell">
@@ -43,7 +42,7 @@ export default async function OrganizationWorkspacePage({
         <h1 style={{ fontSize: 36 }}>{membership.organization.name}</h1>
         <p className="lead">العضوية الحالية: {membership.role}. ملكية وكلاء هذه المساحة تعود للمؤسسة.</p>
       </section>
-      {canManageMembers ? (
+      {membership.role === "OWNER" || membership.role === "ADMIN" ? (
         <OrganizationMembersPanel
           organizationId={organizationId}
           currentRole={membership.role}
