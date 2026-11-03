@@ -25,7 +25,7 @@ afterEach(() => {
 
 describe("internal agent worker endpoint", () => {
   it("rejects requests without a valid worker secret", async () => {
-    process.env.AGENT_WORKER_SECRET = "a-long-test-secret-value";
+    process.env.AGENT_WORKER_SECRET = "a-long-test-secret-value-0123456789abcdef";
     const response = await POST(new Request("http://localhost/api/internal/agent-worker", {
       method: "POST",
     }));
@@ -34,19 +34,19 @@ describe("internal agent worker endpoint", () => {
   });
 
   it("keeps the worker disabled until provider configuration is present", async () => {
-    process.env.AGENT_WORKER_SECRET = "a-long-test-secret-value";
+    process.env.AGENT_WORKER_SECRET = "a-long-test-secret-value-0123456789abcdef";
     delete process.env.OPENAI_API_KEY;
     delete process.env.OPENAI_AGENT_MODEL;
     const response = await POST(new Request("http://localhost/api/internal/agent-worker", {
       method: "POST",
-      headers: { Authorization: "Bearer a-long-test-secret-value" },
+      headers: { Authorization: "Bearer a-long-test-secret-value-0123456789abcdef" },
     }));
     expect(response.status).toBe(503);
     expect(runAgentWorkerOnce).not.toHaveBeenCalled();
   });
 
   it("invokes exactly one worker iteration only after secret and provider configuration", async () => {
-    process.env.AGENT_WORKER_SECRET = "a-long-test-secret-value";
+    process.env.AGENT_WORKER_SECRET = "a-long-test-secret-value-0123456789abcdef";
     process.env.OPENAI_API_KEY = "test-only-not-a-real-key";
     process.env.OPENAI_AGENT_MODEL = "test-model";
     vi.mocked(runAgentWorkerOnce).mockResolvedValue({
@@ -58,7 +58,7 @@ describe("internal agent worker endpoint", () => {
 
     const response = await POST(new Request("http://localhost/api/internal/agent-worker", {
       method: "POST",
-      headers: { Authorization: "Bearer a-long-test-secret-value" },
+      headers: { Authorization: "Bearer a-long-test-secret-value-0123456789abcdef" },
     }));
     expect(response.status).toBe(200);
     expect(runAgentWorkerOnce).toHaveBeenCalledOnce();
