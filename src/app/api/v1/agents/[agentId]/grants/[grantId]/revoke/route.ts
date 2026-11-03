@@ -41,6 +41,11 @@ export async function POST(request: Request, context: RouteContext) {
     });
     if (changed.count !== 1) return { state: "CONFLICT" as const };
 
+    await tx.agent.update({
+      where: { id: agentId },
+      data: { configurationVersion: { increment: 1 } },
+    });
+
     await tx.auditEvent.create({
       data: {
         actorUserId: session.user.id,
