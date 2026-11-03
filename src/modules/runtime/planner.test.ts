@@ -115,6 +115,18 @@ describe("agent planning boundary", () => {
     expect(generatePlan).not.toHaveBeenCalled();
   });
 
+  it("fails closed and does not expose provider errors", async () => {
+    const provider: AgentPlanProvider = {
+      generatePlan: vi.fn(async () => {
+        throw new Error("secret token: do-not-return-this");
+      }),
+    };
+    const result = await createAgentPlan(provider, request);
+
+    expect(result).toEqual({ status: "PROVIDER_ERROR" });
+    expect(JSON.stringify(result)).not.toContain("do-not-return-this");
+  });
+
   it("passes external source text in a distinct untrusted field", async () => {
     const generatePlan = vi.fn(async (_input: AgentPlanningRequest) => ({
       summary: "Review source safely.",
