@@ -24,7 +24,7 @@ const approvalRequestSchema = z.object({
   recipient: z.string().trim().min(1).max(512),
   requestedDataScope: z.array(z.string().trim().min(1).max(128)).min(1).max(20)
     .refine((items) => new Set(items).size === items.length),
-  payload: z.record(z.unknown()),
+  payload: z.record(z.string(), z.unknown()),
   expiresInMinutes: z.number().int().min(1).max(1440).default(30),
   idempotencyKey: z.string().trim().min(8).max(128),
 });
@@ -128,9 +128,7 @@ export async function POST(request: Request, context: RouteContext) {
 
   const now = new Date();
   const requestedExpiry = new Date(now.getTime() + parsed.data.expiresInMinutes * 60_000);
-  const ownerId = agent.ownerType === "USER"
-    ? agent.userOwnerId
-    : agent.organizationOwnerId;
+  const ownerId = agent.organizationOwnerId;
   if (!ownerId) return apiError("CONFLICT", 409);
 
   const result = await prisma.$transaction(async (tx) => {
