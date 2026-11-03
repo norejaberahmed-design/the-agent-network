@@ -7,6 +7,7 @@ import { apiError } from "@/lib/api-response";
 import { isTrustedMutationRequest } from "@/lib/request-security";
 import { prisma } from "@/lib/prisma";
 import { getAgentAccess } from "@/modules/agents/access";
+import { canApproveAgentActions } from "@/modules/approvals/access";
 import {
   createSafeApprovalPreview,
   digestApprovalEnvelope,
@@ -35,9 +36,12 @@ export async function GET(_request: Request, context: RouteContext) {
   const { agentId } = await context.params;
   const access = await getAgentAccess(agentId, session.user.id);
   if (!access?.canManagePermissions) return apiError("FORBIDDEN", 403);
+  const canApprove = await canApproveAgentActions(agentId, session.user.id);
 
   const approvals = await prisma.actionApproval.findMany({
-    where: { agentId },
+    where: canApprove
+      ? { agentId }
+      : { agentId, requesterUserId: session.user.id },
     select: {
       id: true,
       actionType: true,
