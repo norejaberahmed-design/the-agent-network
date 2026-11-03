@@ -2,6 +2,31 @@ CREATE TYPE "AgentRunStatus" AS ENUM ('QUEUED', 'PLANNING', 'WAITING_APPROVAL', 
 
 ALTER TABLE "PermissionGrant" ADD COLUMN "reservedUses" INTEGER NOT NULL DEFAULT 0;
 
+INSERT INTO "AgentCapability" ("id", "agentId", "key", "description", "languages", "createdAt")
+SELECT
+  'cap_' || md5("agentId" || '_READ_PUBLIC_PROFILE'),
+  "agentId",
+  'READ_PUBLIC_PROFILE',
+  'Read explicitly public agent profiles within an owner-approved internal discovery grant.',
+  ARRAY['ar', 'en']::TEXT[],
+  CURRENT_TIMESTAMP
+FROM "PermissionGrant"
+WHERE 'DISCOVER_INTERNAL' = ANY("actionScope")
+ON CONFLICT ("agentId", "key") DO NOTHING;
+
+INSERT INTO "AgentCapability" ("id", "agentId", "key", "description", "languages", "createdAt")
+SELECT
+  'cap_' || md5("agentId" || '_SEARCH_PUBLIC_WEB'),
+  "agentId",
+  'SEARCH_PUBLIC_WEB',
+  'Search public web sources within an owner-approved grant.',
+  ARRAY['ar', 'en']::TEXT[],
+  CURRENT_TIMESTAMP
+FROM "PermissionGrant"
+WHERE 'SEARCH_PUBLIC_WEB' = ANY("actionScope")
+ON CONFLICT ("agentId", "key") DO NOTHING;
+
+
 CREATE TABLE "AgentRun" (
   "id" TEXT NOT NULL,
   "agentId" TEXT NOT NULL,
