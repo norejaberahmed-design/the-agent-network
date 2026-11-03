@@ -18,6 +18,7 @@ export function organizationAgentPermissions(role: OrganizationAgentRole) {
       role === "AUDITOR",
     canManage:
       role === "OWNER" || role === "ADMIN" || role === "AGENT_MANAGER",
+    canManageFieldPolicies: role === "OWNER" || role === "ADMIN",
     canManagePermissions: role === "OWNER" || role === "ADMIN",
   };
 }
