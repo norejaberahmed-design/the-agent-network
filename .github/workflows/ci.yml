@@ -50,12 +50,16 @@ jobs:
         run: npx prisma validate
       - name: Generate Prisma client
         run: npm run db:generate
+      - name: Prepare isolated CI database
+        run: npx prisma db push --skip-generate
       - name: Lint
         run: npm run lint
       - name: Typecheck
         run: npm run typecheck
       - name: Unit tests
         run: npm test
+      - name: PostgreSQL integration tests
+        run: npm run test:integration
       - name: Production build
         run: npm run build
       - name: Install Playwright browser
