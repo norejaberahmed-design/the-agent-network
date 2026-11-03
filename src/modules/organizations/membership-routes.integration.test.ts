@@ -34,7 +34,6 @@ const otherMemberId = `org-other-member-${suffix}`;
 const organizationId = `org-members-${suffix}`;
 const otherOrganizationId = `org-other-members-${suffix}`;
 let ownerMembershipId = "";
-let adminMembershipId = "";
 let secondAdminMembershipId = "";
 let managerMembershipId = "";
 let viewerMembershipId = "";
@@ -93,7 +92,6 @@ suite("organization membership management APIs (PostgreSQL integration)", () => 
     ]);
     [
       ownerMembershipId,
-      adminMembershipId,
       secondAdminMembershipId,
       managerMembershipId,
       viewerMembershipId,
