@@ -139,13 +139,23 @@ export function ActionApprovalManager({
           }),
         },
       );
+      const body = await response.json();
       if (!response.ok) {
         setError(response.status === 403
           ? "لا تملك صلاحية اتخاذ القرار أو لا يمكن الموافقة على طلبك الشخصي."
           : "تعذر تسجيل قرار الموافقة.");
         return;
       }
-      setNotice(decision === "APPROVE" ? "تمت الموافقة على الطلب." : "تم رفض الطلب.");
+      const status = body.data.status as string;
+      setNotice(status === "EXPIRED"
+        ? "انتهت صلاحية الطلب ولم تتم الموافقة عليه."
+        : status === "CANCELLED"
+          ? "أُلغي الطلب لأن الوكيل أو الصلاحية لم تعد صالحة."
+          : status === "APPROVED"
+            ? "تمت الموافقة على الطلب."
+            : status === "REJECTED"
+              ? "تم رفض الطلب."
+              : "تم تحديث حالة الطلب.");
       await loadApprovals();
     } catch {
       setError("تعذر الاتصال بالخادم لتسجيل القرار.");
