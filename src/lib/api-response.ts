@@ -6,6 +6,8 @@ const messages: Record<string, string> = {
   INVALID_JSON: "The request body must be valid JSON.",
   VALIDATION_FAILED: "The request did not satisfy the required schema.",
   INVALID_ORIGIN: "The request origin is not allowed.",
+  NOT_FOUND: "The requested resource was not found.",
+  CONFLICT: "The resource changed or is no longer in the requested state.",
 };
 
 export function apiError(
