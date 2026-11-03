@@ -64,6 +64,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       },
     });
     if (!agent) return { state: "NOT_FOUND" as const };
+    if (agent.status === "REVOKED") return { state: "TERMINAL" as const };
 
     let ownerId: string;
     if (agent.ownerType === "USER") {
@@ -181,7 +182,7 @@ export async function PATCH(request: Request, context: RouteContext) {
   if (result.state === "PUBLIC_PROFILE_REQUIRED") {
     return apiError("PUBLIC_PROFILE_REQUIRED", 422);
   }
-  if (result.state === "CONFLICT") return apiError("CONFLICT", 409);
+  if (result.state === "CONFLICT" || result.state === "TERMINAL") return apiError("CONFLICT", 409);
 
   return Response.json(
     {
