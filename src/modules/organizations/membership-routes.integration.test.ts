@@ -34,10 +34,12 @@ const otherMemberId = `org-other-member-${suffix}`;
 const organizationId = `org-members-${suffix}`;
 const otherOrganizationId = `org-other-members-${suffix}`;
 let ownerMembershipId = "";
+let adminMembershipId = "";
 let secondAdminMembershipId = "";
 let managerMembershipId = "";
 let viewerMembershipId = "";
 let otherMembershipId = "";
+let adminInvitationId = "";
 
 const setSessionUser = (userId: string) => {
   vi.mocked(auth.api.getSession).mockResolvedValue({
@@ -92,6 +94,7 @@ suite("organization membership management APIs (PostgreSQL integration)", () => 
     ]);
     [
       ownerMembershipId,
+      adminMembershipId,
       secondAdminMembershipId,
       managerMembershipId,
       viewerMembershipId,
@@ -184,6 +187,8 @@ suite("organization membership management APIs (PostgreSQL integration)", () => 
       contextForOrganization(organizationId),
     );
     expect(adminInvite.status).toBe(201);
+    const adminInvitePayload = await adminInvite.json();
+    adminInvitationId = adminInvitePayload.data.id;
 
     const adminElevation = await createOrganizationInvitation(
       request("http://localhost", "POST", {
