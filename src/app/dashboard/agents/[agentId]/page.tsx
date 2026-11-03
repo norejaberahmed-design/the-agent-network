@@ -75,7 +75,7 @@ export default async function AgentDetailPage({
       {access.canViewFieldPolicies ? (
         <FieldPolicyManager
           agentId={agentId}
-          canManage={access.canManage}
+          canManage={access.canManageFieldPolicies}
           initialPolicies={fieldPolicies.map((policy) => ({
             ...policy,
             updatedAt: policy.updatedAt.toISOString(),
