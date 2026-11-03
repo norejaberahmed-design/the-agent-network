@@ -1,0 +1,50 @@
+name: Agent runtime worker
+
+on:
+  schedule:
+    - cron: "0 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  invoke-worker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Invoke one protected worker iteration
+        shell: bash
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          AGENT_WORKER_SECRET: ${{ secrets.AGENT_WORKER_SECRET }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${APP_URL}" || -z "${AGENT_WORKER_SECRET}" ]]; then
+            echo "Worker scheduler is inactive. Configure APP_URL and AGENT_WORKER_SECRET repository secrets after deployment."
+            exit 0
+          fi
+
+          response_file="$(mktemp)"
+          trap 'rm -f "$response_file"' EXIT
+          set +e
+          status="$(curl --silent --show-error --output "$response_file" --write-out "%{http_code}" \
+            --max-time 60 --request POST "${APP_URL%/}/api/internal/agent-worker" \
+            --header "Authorization: Bearer ${AGENT_WORKER_SECRET}")"
+          curl_status=$?
+          set -e
+          if [[ "$curl_status" -ne 0 ]]; then
+            cat "$response_file" || true
+            exit "$curl_status"
+          fi
+          cat "$response_file"
+
+          case "$status" in
+            200|429|503)
+              echo "Worker response: HTTP $status"
+              ;;
+            *)
+              echo "Unexpected worker response: HTTP $status"
+              exit 1
+              ;;
+          esac
