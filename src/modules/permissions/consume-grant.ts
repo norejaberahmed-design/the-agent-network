@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 
 export type PermissionGrantUseInput = {
@@ -30,7 +31,7 @@ export async function consumePermissionGrantUse(
   input: PermissionGrantUseInput,
 ): Promise<PermissionGrantUseResult> {
   const now = input.now ?? new Date();
-  const correlationId = crypto.randomUUID();
+  const correlationId = randomUUID();
 
   return prisma.$transaction(async (tx) => {
     const grant = await tx.permissionGrant.findFirst({
@@ -57,6 +58,8 @@ export async function consumePermissionGrantUse(
     });
 
     if (!grant) return { status: "NOT_FOUND" };
+    if (grant.status === "REVOKED") return { status: "REVOKED" };
+    if (grant.status === "EXPIRED") return { status: "EXPIRED" };
     if (grant.status !== "ACTIVE") return { status: "REVOKED" };
     if (grant.expiresAt <= now) return { status: "EXPIRED" };
 
@@ -94,6 +97,8 @@ export async function consumePermissionGrantUse(
         select: { status: true, expiresAt: true, maxUses: true, uses: true },
       });
       if (!current) return { status: "NOT_FOUND" };
+      if (current.status === "REVOKED") return { status: "REVOKED" };
+      if (current.status === "EXPIRED") return { status: "EXPIRED" };
       if (current.status !== "ACTIVE") return { status: "REVOKED" };
       if (current.expiresAt <= now) return { status: "EXPIRED" };
       if (current.maxUses !== null && current.uses >= current.maxUses) {
