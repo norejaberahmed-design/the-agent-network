@@ -374,7 +374,9 @@ export async function runAgentWorkerOnce(args: {
   }
 
   const persistedAt = new Date();
-  const saved = await prisma.$transaction(async (tx) => {
+  let saved: boolean;
+  try {
+    saved = await prisma.$transaction(async (tx) => {
     const current = await tx.agentRun.findFirst({
       where: { id: claimed.id, status: "PLANNING", workerId },
     });
@@ -441,6 +443,23 @@ export async function runAgentWorkerOnce(args: {
     });
     if (changed.count !== 1) throw new Error("WORKER_LEASE_LOST");
 
+    for (const grantId of current.grantIds) {
+      const consumed = await tx.permissionGrant.updateMany({
+        where: {
+          id: grantId,
+          agentId: current.agentId,
+          status: "ACTIVE",
+          expiresAt: { gt: persistedAt },
+          reservedUses: { gt: 0 },
+        },
+        data: {
+          reservedUses: { decrement: 1 },
+          uses: { increment: 1 },
+        },
+      });
+      if (consumed.count !== 1) throw new Error("GRANT_CONSUMPTION_CONFLICT");
+    }
+
     await tx.auditEvent.create({
       data: {
         agentId: current.agentId,
@@ -460,7 +479,13 @@ export async function runAgentWorkerOnce(args: {
       },
     });
     return true;
-  });
+    });
+  } catch (error) {
+    if (error instanceof Error && error.message === "GRANT_CONSUMPTION_CONFLICT") {
+      return cancelRunForAuthorizationFailure(prisma, claimed, workerId, new Date());
+    }
+    throw error;
+  }
 
   if (!saved) return { status: "CANCELLED", runId: claimed.id, reason: "LEASE_OR_AUTHORIZATION_LOST" };
   return {
