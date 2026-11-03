@@ -21,7 +21,7 @@ PostgreSQL is the authoritative store for account identity, ownership, membershi
 | Future coordination | Conversation, Participant, Message | Explicit participant and disclosure policies |
 | Future approval | ApprovalRequest, ApprovalDecision | Exact payload, recipient, grant version |
 
-The current Prisma schema implements the first four groups and audit metadata. The remaining aggregates are deliberately not exposed as active product features yet.
+The current Prisma schema implements Identity, Organization/Membership, Agent, PermissionGrant, Invitation, and AuditEvent foundations. Discovery, evidence, coordination, and approval aggregates are deliberately not exposed as active product features yet.
 
 ## 3. Required database invariants
 
@@ -69,7 +69,7 @@ The following must be enforced in the database migration, not only in TypeScript
 ## 7. Known limitations of the first schema
 
 - Regional data-plane placement is not implemented.
-- Organization role enforcement is not yet exposed through application routes.
+- Organization role enforcement currently covers membership-scoped agent listing and creation for OWNER, ADMIN, and AGENT_MANAGER; invitations, role changes, offboarding, and ownership transfer remain pending.
 - The first agent API only creates and lists agents owned directly by the signed-in user.
 - Invitation issuance and single-use redemption are implemented with hashed tokens and a short-lived reservation state; concurrency, failure-recovery, and abuse tests remain pending.
 - Approval requests and exact-payload approval are not yet implemented.
