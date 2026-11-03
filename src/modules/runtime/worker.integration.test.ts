@@ -49,6 +49,8 @@ async function createRun(options: {
       ownerType: "USER",
       ownerId,
       agentConfigurationVersion: 1,
+      providerConsentAt: new Date(),
+      providerConsentVersion: "ai-processing-v1",
       task: options.task ?? "Research this supplier using public sources.",
       purpose: "Research public suppliers for the owner.",
       target: "PUBLIC_WEB",
