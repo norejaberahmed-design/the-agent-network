@@ -12,7 +12,7 @@ export const runtime = "nodejs";
 type RouteContext = { params: Promise<{ agentId: string }> };
 
 const lifecycleSchema = z.object({
-  status: z.enum(["DRAFT", "ACTIVE", "SUSPENDED"]),
+  status: z.enum(["DRAFT", "ACTIVE", "PAUSED", "SUSPENDED"]),
   discoverable: z.boolean(),
 });
 
