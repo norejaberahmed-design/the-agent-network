@@ -5,6 +5,7 @@ import { auth } from "@/lib/auth";
 import { apiError } from "@/lib/api-response";
 import { isTrustedMutationRequest } from "@/lib/request-security";
 import { prisma } from "@/lib/prisma";
+import { revokeMemberDelegations } from "@/modules/organizations/revoke-member-delegations";
 
 export const runtime = "nodejs";
 
@@ -74,37 +75,13 @@ export async function PATCH(request: Request, context: RouteContext) {
     });
     if (changed.count !== 1) return { state: "CONFLICT" as const };
 
-    const revokedInvitations = await tx.invitation.updateMany({
-      where: {
-        organizationId,
-        createdById: target.userId,
-        status: { in: ["PENDING", "RESERVED"] },
-      },
-      data: {
-        status: "REVOKED",
-        reservationId: null,
-        reservationExpiresAt: null,
-      },
+    await revokeMemberDelegations(tx, {
+      organizationId,
+      membershipId,
+      memberUserId: target.userId,
+      actorUserId: session.user.id,
+      reason: "ROLE_CHANGED",
     });
-    if (revokedInvitations.count > 0) {
-      await tx.auditEvent.create({
-        data: {
-          actorUserId: session.user.id,
-          ownerType: "ORGANIZATION",
-          ownerId: organizationId,
-          action: "organization.member.invitations_revoked",
-          targetType: "Membership",
-          targetId: membershipId,
-          outcome: "COMPLETED",
-          correlationId: randomUUID(),
-          metadata: {
-            memberUserId: target.userId,
-            invitationCount: revokedInvitations.count,
-            reason: "ROLE_CHANGED",
-          },
-        },
-      });
-    }
 
     await tx.auditEvent.create({
       data: {
@@ -177,37 +154,13 @@ export async function DELETE(request: Request, context: RouteContext) {
     });
     if (deleted.count !== 1) return { state: "CONFLICT" as const };
 
-    const revokedInvitations = await tx.invitation.updateMany({
-      where: {
-        organizationId,
-        createdById: target.userId,
-        status: { in: ["PENDING", "RESERVED"] },
-      },
-      data: {
-        status: "REVOKED",
-        reservationId: null,
-        reservationExpiresAt: null,
-      },
+    await revokeMemberDelegations(tx, {
+      organizationId,
+      membershipId,
+      memberUserId: target.userId,
+      actorUserId: session.user.id,
+      reason: "MEMBER_REMOVED",
     });
-    if (revokedInvitations.count > 0) {
-      await tx.auditEvent.create({
-        data: {
-          actorUserId: session.user.id,
-          ownerType: "ORGANIZATION",
-          ownerId: organizationId,
-          action: "organization.member.invitations_revoked",
-          targetType: "Membership",
-          targetId: membershipId,
-          outcome: "COMPLETED",
-          correlationId: randomUUID(),
-          metadata: {
-            memberUserId: target.userId,
-            invitationCount: revokedInvitations.count,
-            reason: "MEMBER_REMOVED",
-          },
-        },
-      });
-    }
 
     await tx.auditEvent.create({
       data: {
