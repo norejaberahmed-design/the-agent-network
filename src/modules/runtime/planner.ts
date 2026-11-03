@@ -22,7 +22,10 @@ export const agentPlanStepSchema = z.object({
 }).strict();
 
 const agentPlanSourceSchema = z.object({
-  url: z.string().url().max(2048),
+  url: z.string().url().max(2048).refine((value) => {
+    const protocol = new URL(value).protocol;
+    return protocol === "https:" || protocol === "http:";
+  }),
   title: z.string().trim().min(1).max(300),
 }).strict();
 
@@ -59,6 +62,7 @@ export type AgentPlanningRequest = {
     sourceId: string;
     content: string;
   }>;
+  safetyIdentifier?: string;
 };
 
 const agentPlanningRequestSchema = z.object({
@@ -71,6 +75,7 @@ const agentPlanningRequestSchema = z.object({
       "Allowed actions must be unique",
     ),
   }).strict(),
+  safetyIdentifier: z.string().trim().min(16).max(128).optional(),
   untrustedSources: z.array(z.object({
     sourceId: z.string().trim().min(1).max(120),
     content: z.string().min(1).max(8000),
@@ -89,6 +94,16 @@ const agentPlanningRequestSchema = z.object({
   }),
 }).strict();
 
+export class AgentPlanProviderError extends Error {
+  constructor(
+    readonly code: "PROVIDER_RATE_LIMITED" | "PROVIDER_UNAVAILABLE" | "PROVIDER_CONFIGURATION_ERROR" | "PROVIDER_REJECTED" | "PROVIDER_POLICY_BLOCKED" | "PROVIDER_TIMEOUT" | "PROVIDER_INVALID_RESPONSE",
+    readonly retryable: boolean,
+  ) {
+    super(code);
+    this.name = "AgentPlanProviderError";
+  }
+}
+
 export type AgentPlanProvider = {
   generatePlan(request: AgentPlanningRequest): Promise<unknown>;
 };
@@ -96,7 +111,8 @@ export type AgentPlanProvider = {
 export type AgentPlanResult =
   | { status: "PLANNED"; plan: AgentPlan }
   | { status: "INVALID_PLAN"; reason: "SCHEMA_INVALID" | "UNAUTHORIZED_ACTION" }
-  | { status: "PROVIDER_ERROR" };
+  | { status: "PROVIDER_ERROR"; code: AgentPlanProviderError["code"]; retryable: boolean }
+  | { status: "PROVIDER_ERROR"; code: "PROVIDER_UNKNOWN"; retryable: true };
 
 /**
  * Validates untrusted request data and model output against a server-derived
@@ -116,9 +132,12 @@ export async function createAgentPlan(
   let generated: unknown;
   try {
     generated = await provider.generatePlan(trustedRequest);
-  } catch {
-    // Do not leak provider exceptions, credentials, or internal request details.
-    return { status: "PROVIDER_ERROR" };
+  } catch (error) {
+    // Expose only a bounded classification, never provider payloads or credentials.
+    if (error instanceof AgentPlanProviderError) {
+      return { status: "PROVIDER_ERROR", code: error.code, retryable: error.retryable };
+    }
+    return { status: "PROVIDER_ERROR", code: "PROVIDER_UNKNOWN", retryable: true };
   }
 
   const parsed = agentPlanSchema.safeParse(generated);
