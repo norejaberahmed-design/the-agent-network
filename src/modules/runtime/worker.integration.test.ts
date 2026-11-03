@@ -189,6 +189,21 @@ suite("agent worker (PostgreSQL integration)", () => {
     expect(saved.status).toBe("FAILED");
   });
 
+  it("does not send generated suspected child-safety content to moderation", async () => {
+    const run = await createRun({ idempotencyKey: `worker-output-child-safety-${suffix}` });
+    const provider: AgentPlanProvider = {
+      generatePlan: vi.fn(async () => ({ ...plan, summary: "CSAM material found." })),
+    };
+    const moderator = successfulModerator();
+
+    const result = await runAgentWorkerOnce({ prisma, provider, moderator, workerId: "worker-output-child-safety" });
+
+    expect(result).toMatchObject({ status: "FAILED", code: "SAFETY_REVIEW_REQUIRED" });
+    expect(moderator.moderate).toHaveBeenCalledOnce();
+    const saved = await prisma.agentRun.findUniqueOrThrow({ where: { id: run.id } });
+    expect(saved.status).toBe("FAILED");
+  });
+
   it("fails closed when input moderation flags a task", async () => {
     const run = await createRun({ idempotencyKey: `worker-moderation-${suffix}` });
     const provider = successfulProvider();
