@@ -135,6 +135,11 @@ suite("agent lifecycle and discovery activation (PostgreSQL integration)", () =>
       context(personalAgentId),
     );
     expect(outsider.status).toBe(403);
+    const revokedOutsider = await updateLifecycle(
+      patchRequest({ status: "ACTIVE", discoverable: false }),
+      context(revokedAgentId),
+    );
+    expect(revokedOutsider.status).toBe(403);
 
     setSessionUser(orgManagerId);
     const manager = await updateLifecycle(
