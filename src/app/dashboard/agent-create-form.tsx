@@ -15,7 +15,7 @@ export function AgentCreateForm() {
     setError("");
     setBusy(true);
     try {
-      const response = await fetch("/api/agents", {
+      const response = await fetch("/api/v1/agents", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, purpose, primaryLanguage: "ar" }),
