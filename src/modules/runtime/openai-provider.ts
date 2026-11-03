@@ -296,9 +296,9 @@ export class OpenAITextModerator implements TextModerator {
  */
 export function mayContainChildSexualAbuse(text: string): boolean {
   const normalized = text.normalize("NFKC").toLocaleLowerCase();
-  const childSignals = /\b(child|children|minor|underage|schoolgirl|schoolboy|teen(?:ager)?)\b|طفل|طفلة|أطفال|اطفال|قاصر|قاصرين|دون\s*18/u;
-  const sexualSignals = /\b(sex|sexual|porn|nude|naked|explicit|abuse|exploitation)\b|جنس|جنسي|إباحي|اباحي|عاري|استغلال/u;
-  const explicitSignals = /child\s+sexual\s+abuse|sexual\s+exploitation\s+of\s+children|استغلال\s+جنسي\s+للأطفال|مواد\s+إباحية\s+للأطفال/u;
+  const childSignals = /\b(child|children|kid|kids|minor|underage|schoolgirl|schoolboy|juvenile|teen(?:ager)?)\b|طفل|طفلة|أطفال|اطفال|قاصر|قاصرين|دون\s*18/u;
+  const sexualSignals = /\b(sex|sexual|sexually|porn|nude|naked|explicit|abuse|exploitation|molest|groom|rape)\b|جنس|جنسي|إباحي|اباحي|عاري|استغلال/u;
+  const explicitSignals = /\bcsam\b|child\s+(?:pornography|porn)|child\s+sexual\s+abuse|sexual\s+exploitation\s+of\s+(?:children|minors)|استغلال\s+جنسي\s+للأطفال|مواد\s+إباحية\s+للأطفال/u;
   return explicitSignals.test(normalized) ||
     (childSignals.test(normalized) && sexualSignals.test(normalized));
 }
