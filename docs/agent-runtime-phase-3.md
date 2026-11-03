@@ -37,7 +37,7 @@ No key or secret is stored in this repository. CI uses fake providers and does n
 - Enables the hosted web_search tool only when SEARCH_PUBLIC_WEB is in the run's live, owner-approved action set, and caps built-in tool calls at one per run.
 - Captures source URLs from the web_search_call.action.sources metadata; source links are restricted to HTTP(S).
 - Sends store=false and a SHA-256 hashed safety_identifier. Do not interpret store=false as Zero Data Retention: abuse-monitoring retention and account-level data controls still apply.
-- Moderates eligible input and generated plan text with omni-moderation-latest. Moderation failures stop processing.
+- Locally screens for likely child-sexual-abuse content and obvious credential formats before any provider call; eligible text and generated plan text are then moderated with omni-moderation-latest. Moderation failures stop processing. These local patterns are defense-in-depth, not complete PII or child-safety detection.
 - A local precautionary screen runs before moderation so known or suspected child-sexual-abuse content is not sent to the moderation endpoint. This heuristic is not a complete child-safety system and is not sufficient by itself for a public launch.
 
 ## Human review and non-execution
