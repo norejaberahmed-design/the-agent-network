@@ -42,7 +42,7 @@ export const auth = betterAuth({
         typeof ctx.body?.email === "string" ? ctx.body.email.trim().toLowerCase() : "";
       const bootstrapToken = process.env.TAN_BOOTSTRAP_TOKEN;
       const bootstrapEmail = process.env.TAN_BOOTSTRAP_ADMIN_EMAIL?.toLowerCase();
-      const suppliedBootstrapToken = ctx.headers.get("x-bootstrap-token");
+      const suppliedBootstrapToken = ctx.headers?.get("x-bootstrap-token") ?? null;
 
       if (
         bootstrapToken &&
@@ -53,7 +53,7 @@ export const auth = betterAuth({
         return;
       }
 
-      const invitationToken = ctx.headers.get("x-invitation-token");
+      const invitationToken = ctx.headers?.get("x-invitation-token") ?? null;
       if (!invitationToken || !email) {
         throw new APIError("FORBIDDEN", {
           message: "A valid invitation is required to create an account.",
@@ -77,7 +77,7 @@ export const auth = betterAuth({
         });
       }
 
-      const reservationId = ctx.headers.get("x-invitation-reservation-id");
+      const reservationId = ctx.headers?.get("x-invitation-reservation-id") ?? null;
       if (!reservationId || !/^[0-9a-f-]{36}$/i.test(reservationId)) {
         throw new APIError("FORBIDDEN", {
           message: "A valid invitation redemption request is required.",
@@ -113,10 +113,10 @@ export const auth = betterAuth({
       if (ctx.path !== "/sign-up/email") return;
 
       const newSession = ctx.context.newSession;
-      const invitationToken = ctx.headers.get("x-invitation-token");
+      const invitationToken = ctx.headers?.get("x-invitation-token") ?? null;
       if (!newSession || !invitationToken) return;
 
-      const reservationId = ctx.headers.get("x-invitation-reservation-id");
+      const reservationId = ctx.headers?.get("x-invitation-reservation-id") ?? null;
       const email = newSession.user.email.trim().toLowerCase();
       const tokenHash = sha256(invitationToken);
       const now = new Date();
