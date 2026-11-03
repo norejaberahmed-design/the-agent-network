@@ -23,6 +23,18 @@ type Policy = {
   updatedAt: string;
 };
 
+const decisionLabels: Record<string, string> = {
+  POLICY_MISSING: "لا توجد سياسة — محجوب",
+  POLICY_AMBIGUOUS: "سياسات متعارضة — محجوب",
+  NOT_PUBLIC: "غير مفعّل للعامة",
+  OWNER_APPROVAL_REQUIRED: "يتطلب موافقة مالك محددة",
+  PURPOSE_NOT_ALLOWED: "الغرض غير مسموح",
+  AUDIENCE_NOT_ALLOWED: "الجمهور غير مسموح",
+  HIGHLY_SENSITIVE_DENIED: "شديد الحساسية — محظور",
+  INVALID_PUBLIC_VISIBILITY: "إعداد غير صالح — محجوب",
+  VALUE_UNAVAILABLE: "القيمة غير متاحة",
+};
+
 const fields = [
   { key: "name", label: "اسم الوكيل" },
   { key: "publicDescription", label: "الوصف العام" },
@@ -148,17 +160,7 @@ export function FieldPolicyManager({
                   <li key={decision.fieldKey}>
                     {fields.find((field) => field.key === decision.fieldKey)?.label ?? decision.fieldKey}
                     {" — "}
-                    {decision.included ? "مسموح" : ({
-                      POLICY_MISSING: "لا توجد سياسة — محجوب",
-                      POLICY_AMBIGUOUS: "سياسات متعارضة — محجوب",
-                      NOT_PUBLIC: "غير مفعّل للعامة",
-                      OWNER_APPROVAL_REQUIRED: "يتطلب موافقة مالك محددة",
-                      PURPOSE_NOT_ALLOWED: "الغرض غير مسموح",
-                      AUDIENCE_NOT_ALLOWED: "الجمهور غير مسموح",
-                      HIGHLY_SENSITIVE_DENIED: "شديد الحساسية — محظور",
-                      INVALID_PUBLIC_VISIBILITY: "إعداد غير صالح — محجوب",
-                      VALUE_UNAVAILABLE: "القيمة غير متاحة",
-                    }[decision.reason] ?? "محجوب")}
+                    {decision.included ? "مسموح" : (decisionLabels[decision.reason] ?? "محجوب")}
                   </li>
                 ))}
               </ul>
