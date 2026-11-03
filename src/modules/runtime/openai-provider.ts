@@ -12,6 +12,14 @@ function isRecord(value: unknown): value is JsonRecord {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function hasRefusal(response: JsonRecord): boolean {
+  const output = Array.isArray(response.output) ? response.output : [];
+  return output.some((item) => isRecord(item) && item.type === "message" &&
+    Array.isArray(item.content) && item.content.some((content) =>
+      isRecord(content) && content.type === "refusal"
+    ));
+}
+
 function outputText(response: JsonRecord): string {
   const output = Array.isArray(response.output) ? response.output : [];
   const chunks: string[] = [];
@@ -212,6 +220,7 @@ export class OpenAIResponsesPlanProvider implements AgentPlanProvider {
       throw new AgentPlanProviderError("PROVIDER_INVALID_RESPONSE", true);
     }
     if (!isRecord(body)) throw new AgentPlanProviderError("PROVIDER_INVALID_RESPONSE", true);
+    if (hasRefusal(body)) throw new AgentPlanProviderError("PROVIDER_POLICY_BLOCKED", false);
 
     const text = outputText(body);
     if (!text) throw new AgentPlanProviderError("PROVIDER_INVALID_RESPONSE", true);
