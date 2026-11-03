@@ -93,10 +93,14 @@ export async function PATCH(request: Request, context: RouteContext) {
       return { state: "FORBIDDEN" as const };
     }
 
-    const ownerId = approval.agent.ownerType === "USER"
-      ? approval.agent.userOwnerId
-      : approval.agent.organizationOwnerId;
-    if (!ownerId) return { state: "CONFLICT" as const };
+    if (
+      approval.agent.ownerType !== "ORGANIZATION" ||
+      !approval.agent.organizationOwnerId ||
+      approval.organizationId !== approval.agent.organizationOwnerId
+    ) {
+      return { state: "CONFLICT" as const };
+    }
+    const ownerId = approval.agent.organizationOwnerId;
 
     const stillAuthorized = approval.agent.ownerType === "USER"
       ? approval.agent.userOwnerId === session.user.id
