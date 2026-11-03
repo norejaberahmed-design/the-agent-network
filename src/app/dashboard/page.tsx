@@ -38,7 +38,7 @@ export default async function DashboardPage() {
             {agents.map((agent) => (
               <article className="agent-row" key={agent.id}>
                 <div>
-                  <strong>{agent.name}</strong>
+                  <Link href={`/dashboard/agents/${agent.id}`}><strong>{agent.name}</strong></Link>
                   <p className="muted" style={{ margin: "6px 0 0" }}>{agent.purpose}</p>
                 </div>
                 <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
