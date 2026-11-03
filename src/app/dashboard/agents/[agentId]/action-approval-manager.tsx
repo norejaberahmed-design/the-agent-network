@@ -179,6 +179,7 @@ export function ActionApprovalManager({
         <h2>موافقات الإجراءات</h2>
         <p className="muted" style={{ margin: "6px 0 0" }}>
           ترتبط الموافقة ببصمة الحمولة والهدف ونطاق البيانات والصلاحية. تسجيل الموافقة لا ينفذ الإجراء.
+          يجب أن يتخذ القرار مالك أو مدير آخر غير مقدم الطلب.
         </p>
       </div>
 
@@ -263,6 +264,7 @@ export function ActionApprovalManager({
                 </p>
                 <p className="muted" style={{ margin: "4px 0", fontSize: 12 }}>
                   الاستخدامات: {approval.grant.uses}/{approval.grant.maxUses ?? "غير محدود"}
+                  {" · تنتهي الصلاحية: "}{new Date(approval.grant.expiresAt).toLocaleString("ar-SA")}
                 </p>
                 <p className="muted" style={{ margin: "4px 0", fontSize: 12 }}>
                   بصمة الحمولة: {approval.payloadDigest.slice(0, 16)}…
