@@ -32,7 +32,7 @@ export const auth = betterAuth({
     disableSignUp: false,
     minPasswordLength: 12,
     maxPasswordLength: 128,
-    autoSignIn: false,
+    autoSignIn: true,
   },
   hooks: {
     before: createAuthMiddleware(async (ctx) => {
@@ -106,16 +106,16 @@ export const auth = betterAuth({
     after: createAuthMiddleware(async (ctx) => {
       if (ctx.path !== "/sign-up/email") return;
 
-      const email =
-        typeof ctx.body?.email === "string" ? ctx.body.email.trim().toLowerCase() : "";
+      const newSession = ctx.context.newSession;
       const invitationToken = ctx.headers.get("x-invitation-token");
-      if (!email || !invitationToken) return;
+      if (!newSession || !invitationToken) return;
+      const email = newSession.user.email.trim().toLowerCase();
 
       const tokenHash = sha256(invitationToken);
       const invitation = await prisma.invitation.findUnique({
         where: { tokenHash },
       });
-      const user = await prisma.user.findUnique({ where: { email } });
+      const user = await prisma.user.findUnique({ where: { id: newSession.user.id } });
       const now = new Date();
 
       if (
