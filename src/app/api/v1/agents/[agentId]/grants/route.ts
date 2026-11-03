@@ -54,7 +54,7 @@ export async function POST(request: Request, context: RouteContext) {
 
   const { agentId } = await context.params;
   const access = await getAgentAccess(agentId, session.user.id);
-  if (!access?.canManage) return apiError("FORBIDDEN", 403);
+  if (!access?.canManagePermissions) return apiError("FORBIDDEN", 403);
   if (access.agent.status === "SUSPENDED" || access.agent.status === "REVOKED") {
     return apiError("FORBIDDEN", 403);
   }
