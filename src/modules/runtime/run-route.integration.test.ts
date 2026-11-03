@@ -106,6 +106,12 @@ suite("agent run queue API (PostgreSQL integration)", () => {
     expect(outsider.status).toBe(403);
   });
 
+  it("requires explicit provider-processing consent", async () => {
+    setSessionUser(ownerId);
+    const response = await createRun(request(payload({ providerConsent: false })), context(agentId));
+    expect(response.status).toBe(422);
+  });
+
   it("queues a run from server-derived capabilities and live grants, with idempotency and reservation", async () => {
     setSessionUser(ownerId);
     const first = await createRun(request(payload()), context(agentId));
