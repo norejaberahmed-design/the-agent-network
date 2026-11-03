@@ -19,6 +19,9 @@ type Run = {
   attemptCount: number;
   maxAttempts: number;
   createdAt: string;
+  planSummary?: string | null;
+  planSources?: Array<{ url: string; title: string }> | null;
+  steps?: Array<{ stepId: string; ordinal: number; action: string; description: string; input: Record<string, unknown>; status: string }>;
 };
 
 export function RunManager({
@@ -66,7 +69,31 @@ export function RunManager({
       }
       setTask("");
       setRuns((current) => [body.data as Run, ...current].slice(0, 50));
-      setNotice("تم حفظ المهمة في قائمة الانتظار. لم يبدأ التنفيذ بعد.");
+      setNotice("تم حفظ المهمة في قائمة الانتظار. سيُنشئ العامل خطة للمراجعة فقط.");
+      router.refresh();
+    } catch {
+      setError("تعذر الاتصال بالخادم.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function rejectPlan(runId: string) {
+    setBusy(true);
+    setError("");
+    setNotice("");
+    try {
+      const response = await fetch(
+        `/api/v1/agents/${encodeURIComponent(agentId)}/runs/${encodeURIComponent(runId)}/reject`,
+        { method: "POST" },
+      );
+      const body = await response.json();
+      if (!response.ok) {
+        setError(body.error?.message ?? "تعذر رفض الخطة.");
+        return;
+      }
+      setRuns((current) => current.map((run) => run.id === runId ? { ...run, status: "CANCELLED" } : run));
+      setNotice("تم رفض الخطة. لم يُنفّذ أي إجراء خارجي.");
       router.refresh();
     } catch {
       setError("تعذر الاتصال بالخادم.");
@@ -105,7 +132,7 @@ export function RunManager({
     <section className="panel" style={{ margin: "28px 0" }}>
       <div className="eyebrow">AGENT RUNTIME</div>
       <h2>إدارة المهام</h2>
-      <p className="muted">تُحفظ المهمة في قاعدة البيانات بعد التحقق من صلاحيات الوكيل والتفويض النشط. قائمة الانتظار لا تنفّذ المهام حالياً.</p>
+      <p className="muted">تُحفظ المهمة ثم يُنشئ العامل خطة ومصادر للمراجعة بعد إعادة التحقق من التفويض. لا ينفّذ النظام أي إجراء خارجي من هذه الشاشة.</p>
       {!active ? <p className="muted">فعّل الوكيل أولاً لإضافة مهام.</p> : grantOptions.length === 0 ? (
         <p className="muted">لا يوجد تفويض نشط يطابق غرضاً ونطاقاً مسموحاً. أنشئ تفويضاً محدوداً أولاً.</p>
       ) : (
@@ -138,7 +165,30 @@ export function RunManager({
             </div>
             <p>{run.task}</p>
             <p className="muted">النطاق: {run.target} · الصلاحيات: {run.authorizedActions.join("، ")}</p>
-            {run.status === "QUEUED" ? (
+            {run.planSummary ? (
+              <div className="panel" style={{ marginTop: 12 }}>
+                <strong>خطة مقترحة للمراجعة — غير منفّذة</strong>
+                <p>{run.planSummary}</p>
+                {run.steps?.map((step) => (
+                  <div key={step.stepId} style={{ marginTop: 10 }}>
+                    <strong>{step.ordinal + 1}. {step.action}</strong>
+                    <p>{step.description}</p>
+                  </div>
+                ))}
+                {run.planSources?.length ? (
+                  <div style={{ marginTop: 12 }}>
+                    <strong>المصادر التي أعادها البحث</strong>
+                    <ul>{run.planSources.map((source) => (
+                      <li key={source.url}><a href={source.url} target="_blank" rel="noopener noreferrer">{source.title}</a></li>
+                    ))}</ul>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+            {run.status === "PLANNED" ? (
+              <button className="button secondary" type="button" disabled={busy} onClick={() => rejectPlan(run.id)}>رفض الخطة</button>
+            ) : null}
+            {run.status === "QUEUED" || run.status === "PLANNING" ? (
               <button className="button secondary" type="button" disabled={busy} onClick={() => cancelRun(run.id)}>إلغاء المهمة</button>
             ) : null}
           </article>
