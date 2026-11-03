@@ -102,7 +102,7 @@ export default async function AgentDetailPage({
               revokedAt: grant.revokedAt?.toISOString() ?? null,
             }))}
           />
-          {access.ownerType === "ORGANIZATION" ? <ActionApprovalManager
+          {access.ownerType === "ORGANIZATION" && access.canManagePermissions ? <ActionApprovalManager
             agentId={agentId}
             currentUserId={session.user.id}
             canRequest={access.canManagePermissions}
