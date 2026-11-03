@@ -13,6 +13,13 @@ export default function AcceptInvitationPage() {
       : "";
     const params = new URLSearchParams(fragment);
     setToken(params.get("token") ?? "");
+    if (fragment) {
+      window.history.replaceState(
+        null,
+        "",
+        `${window.location.pathname}${window.location.search}`,
+      );
+    }
   }, []);
 
   return (
