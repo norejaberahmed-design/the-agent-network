@@ -23,7 +23,14 @@ export function InvitationAcceptForm({ token }: { token: string }) {
     try {
       const result = await authClient.signUp.email(
         { name, email, password },
-        { fetchOptions: { headers: { "x-invitation-token": token } } },
+        {
+          fetchOptions: {
+            headers: {
+              "x-invitation-token": token,
+              "x-invitation-reservation-id": crypto.randomUUID(),
+            },
+          },
+        },
       );
       if (result.error) {
         setError("تعذر قبول الدعوة. قد تكون منتهية أو مستخدمة أو مخصصة لبريد آخر.");
