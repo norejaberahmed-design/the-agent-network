@@ -29,7 +29,7 @@ export function InvitationAcceptForm({ token }: { token: string }) {
         setError("تعذر قبول الدعوة. قد تكون منتهية أو مستخدمة أو مخصصة لبريد آخر.");
         return;
       }
-      router.replace("/sign-in?invited=1");
+      router.replace("/dashboard");
     } catch {
       setError("تعذر إكمال التسجيل. حاول مرة أخرى أو اطلب دعوة جديدة.");
     } finally {
