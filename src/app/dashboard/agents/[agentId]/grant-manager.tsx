@@ -64,7 +64,6 @@ export function GrantManager({
       }
       setPurpose("");
       router.refresh();
-      window.location.reload();
     } catch {
       setError("تعذر الاتصال بالخادم.");
     } finally {
@@ -128,7 +127,7 @@ export function GrantManager({
         {initialGrants.map((grant) => (
           <article className="panel" key={grant.id}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-              <strong>{grant.purpose}</strong><span className="pill">{grant.status}</span>
+              <strong>{grant.purpose}</strong><span className="pill">{grant.status === "ACTIVE" ? "مسجل — التنفيذ متوقف" : grant.status}</span>
             </div>
             <p className="muted" style={{ lineHeight: 1.8 }}>الصلاحيات: {grant.actionScope.join("، ")}<br />النطاق: {grant.targetScope.join("، ")}<br />البيانات: {grant.dataScope.join("، ")}<br />ينتهي: {new Date(grant.expiresAt).toLocaleString("en-GB")}<br />الاستخدام: {grant.uses}{grant.maxUses ? ` / ${grant.maxUses}` : ""} · الإصدار {grant.version}</p>
             {canManage && grant.status === "ACTIVE" ? <button className="button secondary" type="button" disabled={busy} onClick={() => revokeGrant(grant.id)}>إلغاء التفويض</button> : null}
