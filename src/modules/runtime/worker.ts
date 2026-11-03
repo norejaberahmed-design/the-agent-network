@@ -434,6 +434,8 @@ export async function runAgentWorkerOnce(args: {
         action: step.action,
         description: step.description,
         input: step.input as Prisma.InputJsonObject,
+        createdAt: persistedAt,
+        updatedAt: persistedAt,
       })),
     });
 
