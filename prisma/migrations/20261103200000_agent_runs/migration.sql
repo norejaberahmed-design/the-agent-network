@@ -1,5 +1,7 @@
 CREATE TYPE "AgentRunStatus" AS ENUM ('QUEUED', 'PLANNING', 'WAITING_APPROVAL', 'COMPLETED', 'FAILED', 'CANCELLED', 'DEAD_LETTER');
 
+ALTER TABLE "PermissionGrant" ADD COLUMN "reservedUses" INTEGER NOT NULL DEFAULT 0;
+
 CREATE TABLE "AgentRun" (
   "id" TEXT NOT NULL,
   "agentId" TEXT NOT NULL,
@@ -9,7 +11,8 @@ CREATE TABLE "AgentRun" (
   "task" VARCHAR(4000) NOT NULL,
   "purpose" VARCHAR(300) NOT NULL,
   "target" VARCHAR(128) NOT NULL,
-  "authorizedActions" TEXT[],
+  "authorizedActions" TEXT[] NOT NULL,
+  "grantIds" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
   "requestDigest" VARCHAR(64) NOT NULL,
   "idempotencyKey" VARCHAR(128) NOT NULL,
   "status" "AgentRunStatus" NOT NULL DEFAULT 'QUEUED',
