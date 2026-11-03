@@ -37,8 +37,13 @@ suite("invitation redemption transaction (PostgreSQL integration)", () => {
   });
 
   afterAll(async () => {
+    const invitations = await prisma.invitation.findMany({
+      where: { createdById: adminId },
+      select: { id: true },
+    });
+    const invitationIds = invitations.map((invitation) => invitation.id);
     await prisma.auditEvent.deleteMany({
-      where: { targetType: "Invitation", targetId: { startsWith: "redemption-" } },
+      where: { targetType: "Invitation", targetId: { in: invitationIds } },
     });
     await prisma.membership.deleteMany({ where: { organizationId } });
     await prisma.invitation.deleteMany({ where: { createdById: adminId } });
@@ -177,6 +182,9 @@ suite("invitation redemption transaction (PostgreSQL integration)", () => {
       organizationId: null,
       role: null,
     });
+    const membershipsBefore = await prisma.membership.count({
+      where: { organizationId, userId },
+    });
     await completeInvitationRedemption({
       tokenHash: fixture.tokenHash,
       reservationId: fixture.reservationId,
@@ -188,7 +196,7 @@ suite("invitation redemption transaction (PostgreSQL integration)", () => {
       await prisma.membership.count({
         where: { organizationId, userId },
       }),
-    ).toBe(1);
+    ).toBe(membershipsBefore);
     const invitation = await prisma.invitation.findUniqueOrThrow({
       where: { id: fixture.invitation.id },
     });
