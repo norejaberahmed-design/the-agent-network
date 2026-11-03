@@ -43,7 +43,8 @@ async function validateLiveAuthorization(
   run: AgentRun,
   now: Date,
 ): Promise<AuthorizationSnapshot | null> {
-  if (run.grantIds.length === 0 || run.authorizedActions.length === 0) return null;
+  if (run.grantIds.length === 0 || run.authorizedActions.length === 0 ||
+    !run.providerConsentAt || run.providerConsentVersion !== "ai-processing-v1") return null;
 
   const agent = await tx.agent.findUnique({
     where: { id: run.agentId },
