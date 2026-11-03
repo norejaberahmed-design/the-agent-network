@@ -19,7 +19,7 @@ export async function POST(request: Request, context: RouteContext) {
 
   const { agentId, grantId } = await context.params;
   const access = await getAgentAccess(agentId, session.user.id);
-  if (!access?.canManage) return apiError("FORBIDDEN", 403);
+  if (!access?.canManagePermissions) return apiError("FORBIDDEN", 403);
 
   const correlationId = randomUUID();
   const result = await prisma.$transaction(async (tx) => {
