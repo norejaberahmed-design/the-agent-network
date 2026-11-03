@@ -43,6 +43,7 @@ suite("permission grant consumption (PostgreSQL integration)", () => {
   });
 
   afterAll(async () => {
+    await prisma.auditEvent.deleteMany({ where: { agentId } });
     await prisma.agent.deleteMany({ where: { id: agentId } });
     await prisma.user.deleteMany({ where: { id: userId } });
   });
