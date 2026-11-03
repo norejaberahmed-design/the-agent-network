@@ -21,7 +21,7 @@ type Run = {
   createdAt: string;
   planSummary?: string | null;
   planSources?: Array<{ url: string; title: string }> | null;
-  steps?: Array<{ stepId: string; ordinal: number; action: string; description: string; input: Record<string, unknown>; status: string }>;
+  steps?: Array<{ stepId: string; ordinal: number; action: string; description: string; input: unknown; status: string }>;
 };
 
 export function RunManager({
