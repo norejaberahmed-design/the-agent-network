@@ -162,6 +162,7 @@ export async function POST(request: Request, context: RouteContext) {
       select: {
         id: true,
         agentId: true,
+        requesterUserId: true,
         grantId: true,
         actionType: true,
         recipient: true,
@@ -173,6 +174,7 @@ export async function POST(request: Request, context: RouteContext) {
     if (existing) {
       const sameRequest =
         existing.agentId === agentId &&
+        existing.requesterUserId === session.user.id &&
         existing.grantId === parsed.data.grantId &&
         existing.actionType === parsed.data.actionType &&
         existing.recipient === parsed.data.recipient &&
@@ -256,6 +258,7 @@ export async function POST(request: Request, context: RouteContext) {
         select: {
           id: true,
           agentId: true,
+          requesterUserId: true,
           grantId: true,
           actionType: true,
           recipient: true,
@@ -267,6 +270,7 @@ export async function POST(request: Request, context: RouteContext) {
       if (!duplicate) return { state: "IDEMPOTENCY_CONFLICT" as const };
       const sameRequest =
         duplicate.agentId === agentId &&
+        duplicate.requesterUserId === session.user.id &&
         duplicate.grantId === parsed.data.grantId &&
         duplicate.actionType === parsed.data.actionType &&
         duplicate.recipient === parsed.data.recipient &&
