@@ -6,6 +6,7 @@ ALTER TABLE "AgentRun"
   ADD COLUMN "agentConfigurationVersion" INTEGER NOT NULL DEFAULT 1,
   ADD COLUMN "providerConsentAt" TIMESTAMP(3),
   ADD COLUMN "providerConsentVersion" VARCHAR(32) NOT NULL DEFAULT 'ai-processing-v1',
+  ADD COLUMN "expiresAt" TIMESTAMP(3) NOT NULL DEFAULT (CURRENT_TIMESTAMP + INTERVAL '30 days'),
   ADD COLUMN "planSummary" VARCHAR(1000),
   ADD COLUMN "planSources" JSONB,
   ADD COLUMN "plannedAt" TIMESTAMP(3);
@@ -27,6 +28,7 @@ CREATE TABLE "AgentRunStep" (
 CREATE UNIQUE INDEX "AgentRunStep_runId_stepId_key" ON "AgentRunStep"("runId", "stepId");
 CREATE UNIQUE INDEX "AgentRunStep_runId_ordinal_key" ON "AgentRunStep"("runId", "ordinal");
 CREATE INDEX "AgentRunStep_runId_status_idx" ON "AgentRunStep"("runId", "status");
+CREATE INDEX "AgentRun_expiresAt_idx" ON "AgentRun"("expiresAt");
 
 ALTER TABLE "AgentRunStep" ADD CONSTRAINT "AgentRunStep_runId_fkey"
   FOREIGN KEY ("runId") REFERENCES "AgentRun"("id") ON DELETE CASCADE ON UPDATE CASCADE;
