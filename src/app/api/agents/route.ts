@@ -1,17 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { headers } from "next/headers";
-import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { createAgentSchema } from "@/modules/agents/contract";
 
 export const runtime = "nodejs";
-
-const createAgentSchema = z.object({
-  name: z.string().trim().min(2).max(80),
-  purpose: z.string().trim().min(10).max(500),
-  publicDescription: z.string().trim().max(500).optional(),
-  primaryLanguage: z.enum(["ar", "en"]).default("ar"),
-});
 
 async function getAuthenticatedUser() {
   const session = await auth.api.getSession({ headers: await headers() });
