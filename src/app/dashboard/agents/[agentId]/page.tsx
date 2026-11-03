@@ -156,7 +156,7 @@ export default async function AgentDetailPage({
                 grant.status === "ACTIVE" &&
                 grant.revokedAt === null &&
                 grant.expiresAt > new Date() &&
-                (grant.maxUses === null || grant.uses < grant.maxUses),
+                (grant.maxUses === null || grant.uses + grant.reservedUses < grant.maxUses),
               )
               .map((grant) => ({
                 id: grant.id,
