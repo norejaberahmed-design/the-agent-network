@@ -144,6 +144,7 @@ export class OpenAIResponsesPlanProvider implements AgentPlanProvider {
       model: this.model,
       store: false,
       max_output_tokens: 1800,
+      max_tool_calls: 1,
       safety_identifier: safetyIdentifier,
       input: [
         { role: "system", content: [{ type: "input_text", text: systemInstructions }] },
