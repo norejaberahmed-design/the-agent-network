@@ -38,7 +38,13 @@ export async function GET(_request: Request, context: RouteContext) {
     orderBy: { createdAt: "desc" },
   });
 
-  return Response.json({ data: grants }, { headers: { "Cache-Control": "no-store" } });
+  const now = new Date();
+  const effectiveGrants = grants.map((grant) => ({
+    ...grant,
+    status: grant.status === "ACTIVE" && grant.expiresAt <= now ? "EXPIRED" : grant.status,
+  }));
+
+  return Response.json({ data: effectiveGrants }, { headers: { "Cache-Control": "no-store" } });
 }
 
 export async function POST(request: Request, context: RouteContext) {
