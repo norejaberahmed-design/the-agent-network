@@ -28,6 +28,7 @@ export async function getAgentAccess(agentId: string, userId: string) {
       agent,
       canView: true,
       canManage: true,
+      canManagePermissions: true,
       ownerType: "USER" as const,
       ownerId: userId,
     };
@@ -49,6 +50,7 @@ export async function getAgentAccess(agentId: string, userId: string) {
     agent,
     canView: true,
     canManage: MANAGER_ROLES.includes(membership.role as (typeof MANAGER_ROLES)[number]),
+    canManagePermissions: membership.role === "OWNER" || membership.role === "ADMIN",
     ownerType: "ORGANIZATION" as const,
     ownerId: agent.organizationOwnerId,
   };
