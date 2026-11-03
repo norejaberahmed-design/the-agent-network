@@ -47,7 +47,7 @@ export default async function OrganizationWorkspacePage({
         <div className="list">
           {agents.map((agent) => (
             <article className="agent-row" key={agent.id}>
-              <div><Link href={`/dashboard/agents/${agent.id}`}><strong>{agent.name}</strong></Link><p className="muted" style={{ margin: "5px 0 0" }}>{agent.purpose}</p></div>
+              <div><Link href={`/dashboard/agents/${agent.id}`}><strong>{agent.name}</strong></Link>{membership.role !== "VIEWER" ? <p className="muted" style={{ margin: "5px 0 0" }}>{agent.purpose}</p> : null}</div>
               <div style={{ display: "flex", gap: 8 }}><span className="pill">{agent.status}</span><span className="muted">{agent.discoverable ? "عام" : "خاص"}</span></div>
             </article>
           ))}
