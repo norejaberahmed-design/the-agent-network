@@ -321,6 +321,8 @@ suite("exact-payload action approval workflow (PostgreSQL integration)", () => {
       where: { id: revokedGrant.id },
       data: { status: "REVOKED", revokedAt: new Date(), version: { increment: 1 } },
     });
+    // The decision caller must be the independent organization owner, not the requester.
+    setSessionUser(ownerId);
     const cancelledDecision = await decideApproval(
       patchRequest({ decision: "APPROVE" }),
       decisionContext(revokedPayload.data.id),
