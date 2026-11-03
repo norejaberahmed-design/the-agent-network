@@ -34,19 +34,6 @@ export const auth = betterAuth({
     maxPasswordLength: 128,
     autoSignIn: false,
   },
-  databaseHooks: {
-    user: {
-      create: {
-        before: async (user) => {
-          const bootstrapEmail = process.env.TAN_BOOTSTRAP_ADMIN_EMAIL?.toLowerCase();
-          if (bootstrapEmail && user.email.toLowerCase() === bootstrapEmail) {
-            return { data: { ...user, platformRole: "PLATFORM_ADMIN" } };
-          }
-          return { data: user };
-        },
-      },
-    },
-  },
   hooks: {
     before: createAuthMiddleware(async (ctx) => {
       if (ctx.path !== "/sign-up/email") return;
