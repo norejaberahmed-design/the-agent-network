@@ -34,7 +34,7 @@ No key or secret is stored in this repository. CI uses fake providers and does n
 ## OpenAI integration
 
 - Uses the Responses API with strict JSON Schema output.
-- Enables the hosted web_search tool only when SEARCH_PUBLIC_WEB is in the run's live, owner-approved action set.
+- Enables the hosted web_search tool only when SEARCH_PUBLIC_WEB is in the run's live, owner-approved action set, and caps built-in tool calls at one per run.
 - Captures source URLs from the web_search_call.action.sources metadata; source links are restricted to HTTP(S).
 - Sends store=false and a SHA-256 hashed safety_identifier. Do not interpret store=false as Zero Data Retention: abuse-monitoring retention and account-level data controls still apply.
 - Moderates eligible input and generated plan text with omni-moderation-latest. Moderation failures stop processing.
