@@ -41,7 +41,7 @@ export async function GET(_request: Request, context: RouteContext) {
       plannedAt: true,
       steps: {
         orderBy: { ordinal: "asc" },
-        select: { stepId: true, ordinal: true, action: true, description: true, input: true, status: true },
+        select: { stepId: true, ordinal: true, action: true, description: true, status: true },
       },
       createdAt: true,
       updatedAt: true,
