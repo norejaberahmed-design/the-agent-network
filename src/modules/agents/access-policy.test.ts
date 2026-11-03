@@ -9,6 +9,7 @@ describe("organization agent access policy", () => {
       canViewGrants: false,
       canViewFieldPolicies: false,
       canManage: false,
+      canManageFieldPolicies: false,
       canManagePermissions: false,
     });
   });
@@ -17,6 +18,7 @@ describe("organization agent access policy", () => {
     const permissions = organizationAgentPermissions("AGENT_MANAGER");
     expect(permissions.canManage).toBe(true);
     expect(permissions.canViewFieldPolicies).toBe(true);
+    expect(permissions.canManageFieldPolicies).toBe(false);
     expect(permissions.canViewGrants).toBe(false);
     expect(permissions.canManagePermissions).toBe(false);
   });
@@ -26,6 +28,7 @@ describe("organization agent access policy", () => {
       const permissions = organizationAgentPermissions(role);
       expect(permissions.canViewGrants).toBe(true);
       expect(permissions.canManagePermissions).toBe(true);
+      expect(permissions.canManageFieldPolicies).toBe(true);
     }
     expect(organizationAgentPermissions("AUDITOR").canViewGrants).toBe(true);
     expect(organizationAgentPermissions("AUDITOR").canManagePermissions).toBe(false);
