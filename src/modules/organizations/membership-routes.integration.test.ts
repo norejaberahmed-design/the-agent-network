@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { GET as listMembers } from "../../app/api/v1/organizations/[organizationId]/members/route";
 import { POST as createOrganizationInvitation } from "../../app/api/v1/organizations/[organizationId]/invitations/route";
+import { POST as createPermissionGrant } from "../../app/api/v1/agents/[agentId]/grants/route";
 import {
   PATCH as updateMember,
   DELETE as removeMember,
@@ -33,6 +34,8 @@ const outsiderId = `org-outsider-${suffix}`;
 const otherMemberId = `org-other-member-${suffix}`;
 const organizationId = `org-members-${suffix}`;
 const otherOrganizationId = `org-other-members-${suffix}`;
+const organizationAgentId = `org-members-agent-${suffix}`;
+let adminGrantId = "";
 let ownerMembershipId = "";
 let adminMembershipId = "";
 let secondAdminMembershipId = "";
@@ -50,6 +53,8 @@ const setSessionUser = (userId: string) => {
 const contextForOrganization = (organizationId: string) => ({
   params: Promise.resolve({ organizationId }),
 });
+
+const contextForAgent = (agentId: string) => ({ params: Promise.resolve({ agentId }) });
 
 const contextForMember = (organizationId: string, membershipId: string) => ({
   params: Promise.resolve({ organizationId, membershipId }),
@@ -84,6 +89,15 @@ suite("organization membership management APIs (PostgreSQL integration)", () => 
         { id: otherOrganizationId, name: "Other Tenant Organization", slug: `other-members-${suffix}` },
       ],
     });
+    await prisma.agent.create({
+      data: {
+        id: organizationAgentId,
+        ownerType: "ORGANIZATION",
+        organizationOwnerId: organizationId,
+        name: "Organization Delegation Test Agent",
+        purpose: "Integration test fixture for delegated grants",
+      },
+    });
     const memberships = await Promise.all([
       prisma.membership.create({ data: { organizationId, userId: ownerId, role: "OWNER" } }),
       prisma.membership.create({ data: { organizationId, userId: adminId, role: "ADMIN" } }),
@@ -112,6 +126,8 @@ suite("organization membership management APIs (PostgreSQL integration)", () => 
     await prisma.invitation.deleteMany({
       where: { organizationId: { in: [organizationId, otherOrganizationId] } },
     });
+    await prisma.permissionGrant.deleteMany({ where: { agentId: organizationAgentId } });
+    await prisma.agent.deleteMany({ where: { id: organizationAgentId } });
     await prisma.membership.deleteMany({
       where: { organizationId: { in: [organizationId, otherOrganizationId] } },
     });
@@ -302,6 +318,22 @@ suite("organization membership management APIs (PostgreSQL integration)", () => 
     expect(response.status).toBe(403);
   });
   it("revokes pending invitations created by a member when the owner removes that member", async () => {
+    setSessionUser(adminId);
+    const grantResponse = await createPermissionGrant(
+      request("http://localhost", "POST", {
+        purpose: "Delegated supplier discovery for approved vendor research",
+        actionScope: ["SEARCH_PUBLIC_WEB"],
+        targetScope: ["example.invalid"],
+        dataScope: ["PUBLIC_PROFILE"],
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+        maxUses: 3,
+      }),
+      contextForAgent(organizationAgentId),
+    );
+    expect(grantResponse.status).toBe(201);
+    const grantPayload = await grantResponse.json();
+    adminGrantId = grantPayload.data.id;
+
     setSessionUser(ownerId);
     const response = await removeMember(
       request("http://localhost", "DELETE"),
@@ -318,12 +350,30 @@ suite("organization membership management APIs (PostgreSQL integration)", () => 
       reservationId: null,
       reservationExpiresAt: null,
     });
+    const grant = await prisma.permissionGrant.findUniqueOrThrow({
+      where: { id: adminGrantId },
+      select: { status: true, uses: true, version: true, revokedAt: true },
+    });
+    expect(grant.status).toBe("REVOKED");
+    expect(grant.uses).toBe(0);
+    expect(grant.version).toBe(2);
+    expect(grant.revokedAt).not.toBeNull();
     await expect(
       prisma.auditEvent.count({
         where: {
           ownerId: organizationId,
           action: "organization.member.invitations_revoked",
           targetId: adminMembershipId,
+          actorUserId: ownerId,
+        },
+      }),
+    ).resolves.toBe(1);
+    await expect(
+      prisma.auditEvent.count({
+        where: {
+          ownerId: organizationId,
+          action: "permission_grant.revoked",
+          targetId: adminGrantId,
           actorUserId: ownerId,
         },
       }),
