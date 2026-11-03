@@ -16,6 +16,7 @@ type Run = {
   target: string;
   authorizedActions: string[];
   status: string;
+  errorCode?: string | null;
   attemptCount: number;
   maxAttempts: number;
   createdAt: string;
@@ -171,6 +172,7 @@ export function RunManager({
             </div>
             <p>{run.task}</p>
             <p className="muted">النطاق: {run.target} · الصلاحيات: {run.authorizedActions.join("، ")}</p>
+            {run.errorCode ? <p className="error">رمز الحالة: {run.errorCode}</p> : null}
             {run.planSummary ? (
               <div className="panel" style={{ marginTop: 12 }}>
                 <strong>خطة مقترحة للمراجعة — غير منفّذة</strong>
