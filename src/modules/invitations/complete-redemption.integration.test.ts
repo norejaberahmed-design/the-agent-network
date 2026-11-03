@@ -156,8 +156,8 @@ suite("invitation redemption transaction (PostgreSQL integration)", () => {
       completeInvitationRedemption({
         tokenHash: fixture.tokenHash,
         reservationId: fixture.reservationId,
-        userId: raceUserId,
-        email: raceUserEmail,
+        userId,
+        email: userEmail,
       }),
     ).rejects.toThrow("reservation is no longer valid");
 
@@ -169,13 +169,13 @@ suite("invitation redemption transaction (PostgreSQL integration)", () => {
   });
 
   it("rejects a mismatched email without consuming the invitation", async () => {
-    const fixture = await createReservedInvitation();
+    const fixture = await createReservedInvitation({ intendedEmail: "attacker@example.invalid" });
     await expect(
       completeInvitationRedemption({
         tokenHash: fixture.tokenHash,
         reservationId: fixture.reservationId,
-        userId: raceUserId,
-        email: "attacker@example.invalid",
+        userId,
+        email: userEmail,
       }),
     ).rejects.toThrow("assigned to another email");
 
@@ -196,8 +196,8 @@ suite("invitation redemption transaction (PostgreSQL integration)", () => {
     await completeInvitationRedemption({
       tokenHash: fixture.tokenHash,
       reservationId: fixture.reservationId,
-      userId: raceUserId,
-      email: raceUserEmail,
+      userId,
+      email: userEmail,
     });
 
     expect(
