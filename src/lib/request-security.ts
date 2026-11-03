@@ -38,7 +38,9 @@ export async function isTrustedMutationRequest(request: Request): Promise<boolea
       if (done) return true;
       totalBytes += value.byteLength;
       if (totalBytes > MAX_MUTATION_BODY_BYTES) {
-        await reader.cancel();
+        // Cancel both tee branches together so cancellation cannot wait on
+        // the untouched original request stream.
+        await Promise.all([reader.cancel(), request.body?.cancel()]);
         return false;
       }
     }
