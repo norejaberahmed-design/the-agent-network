@@ -21,13 +21,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Install Prisma CLI
-        run: npm install --no-audit --no-fund
       - name: Generate initial PostgreSQL schema migration from the pre-runtime schema
         run: |
           mkdir -p prisma/migrations/20261001000000_initial_schema
-          npx prisma validate
-          npx prisma migrate diff --from-empty --to-schema-datamodel prisma/schema.prisma --script > prisma/migrations/20261001000000_initial_schema/migration.sql
+          npx --yes prisma@6.15.0 validate
+          npx --yes prisma@6.15.0 migrate diff --from-empty --to-schema-datamodel prisma/schema.prisma --script > prisma/migrations/20261001000000_initial_schema/migration.sql
           test -s prisma/migrations/20261001000000_initial_schema/migration.sql
       - name: Commit generated baseline to this temporary branch
         run: |
