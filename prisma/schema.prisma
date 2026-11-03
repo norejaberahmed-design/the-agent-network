@@ -255,6 +255,7 @@ model PermissionGrant {
   expiresAt      DateTime
   maxUses        Int?
   uses           Int         @default(0)
+  reservedUses   Int         @default(0)
   version        Int         @default(1)
   status         GrantStatus @default(ACTIVE)
   createdAt      DateTime    @default(now())
@@ -314,6 +315,7 @@ model AgentRun {
   purpose           String         @db.VarChar(300)
   target            String         @db.VarChar(128)
   authorizedActions String[]
+  grantIds          String[]       @default([])
   requestDigest     String         @db.VarChar(64)
   idempotencyKey    String         @db.VarChar(128)
   status            AgentRunStatus @default(QUEUED)
