@@ -3,12 +3,14 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-type AgentStatus = "DRAFT" | "ACTIVE" | "SUSPENDED";
+type AgentStatus = "DRAFT" | "ACTIVE" | "PAUSED" | "SUSPENDED" | "REVOKED";
 
 const statusLabels: Record<AgentStatus, string> = {
   DRAFT: "مسودة",
   ACTIVE: "نشط",
+  PAUSED: "متوقف مؤقتاً",
   SUSPENDED: "موقوف",
+  REVOKED: "ملغى نهائياً",
 };
 
 export function AgentLifecycleManager({
@@ -84,6 +86,7 @@ export function AgentLifecycleManager({
         <select
           id="agent-status"
           value={status}
+          disabled={initialStatus === "REVOKED"}
           onChange={(event) => {
             const next = event.target.value as AgentStatus;
             setStatus(next);
@@ -92,14 +95,16 @@ export function AgentLifecycleManager({
         >
           <option value="DRAFT">مسودة</option>
           <option value="ACTIVE">نشط</option>
+          <option value="PAUSED">متوقف مؤقتاً</option>
           <option value="SUSPENDED">موقوف</option>
+          {status === "REVOKED" ? <option value="REVOKED" disabled>ملغى نهائياً</option> : null}
         </select>
       </div>
       <label style={{ display: "flex", alignItems: "center", gap: 9 }}>
         <input
           type="checkbox"
           checked={discoverable}
-          disabled={status !== "ACTIVE"}
+          disabled={status !== "ACTIVE" || initialStatus === "REVOKED"}
           onChange={(event) => setDiscoverable(event.target.checked)}
         />
         السماح بظهور الوكيل في دليل الاكتشاف
@@ -111,7 +116,7 @@ export function AgentLifecycleManager({
           className="button"
           type="button"
           onClick={() => void save()}
-          disabled={busy || (status === initialStatus && discoverable === initialDiscoverable)}
+          disabled={busy || initialStatus === "REVOKED" || (status === initialStatus && discoverable === initialDiscoverable)}
         >
           {busy ? "جارٍ الحفظ..." : "حفظ الحالة"}
         </button>
