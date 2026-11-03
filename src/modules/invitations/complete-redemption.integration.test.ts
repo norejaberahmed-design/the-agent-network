@@ -8,7 +8,9 @@ const suite = enabled ? describe : describe.skip;
 const suffix = randomUUID();
 const adminId = `redemption-admin-${suffix}`;
 const userId = `redemption-user-${suffix}`;
+const userEmail = `redemption-user-${suffix}@example.invalid`;
 const raceUserId = `redemption-race-user-${suffix}`;
+const raceUserEmail = `redemption-race-user-${suffix}@example.invalid`;
 const organizationId = `redemption-org-${suffix}`;
 
 suite("invitation redemption transaction (PostgreSQL integration)", () => {
@@ -24,12 +26,12 @@ suite("invitation redemption transaction (PostgreSQL integration)", () => {
         {
           id: userId,
           name: "Redemption Test User",
-          email: `redemption-user-${suffix}@example.invalid`,
+          email: userEmail,
         },
         {
           id: raceUserId,
           name: "Redemption Race Test User",
-          email: `redemption-race-user-${suffix}@example.invalid`,
+          email: raceUserEmail,
         },
       ],
     });
@@ -68,7 +70,7 @@ suite("invitation redemption transaction (PostgreSQL integration)", () => {
     const invitation = await prisma.invitation.create({
       data: {
         tokenHash,
-        intendedEmail: options?.intendedEmail ?? "redemption-user@example.invalid",
+        intendedEmail: options?.intendedEmail === undefined ? userEmail : options.intendedEmail,
         organizationId: options?.organizationId === undefined
           ? organizationId
           : options.organizationId,
@@ -90,7 +92,7 @@ suite("invitation redemption transaction (PostgreSQL integration)", () => {
       tokenHash: fixture.tokenHash,
       reservationId: fixture.reservationId,
       userId,
-      email: " REDEMPTION-USER@EXAMPLE.INVALID ",
+      email: userEmail.toUpperCase(),
     });
 
     expect(result).toMatchObject({
@@ -118,19 +120,19 @@ suite("invitation redemption transaction (PostgreSQL integration)", () => {
   });
 
   it("allows exactly one successful redemption when the same reservation races", async () => {
-    const fixture = await createReservedInvitation();
+    const fixture = await createReservedInvitation({ intendedEmail: raceUserEmail });
     const attempts = await Promise.allSettled([
       completeInvitationRedemption({
         tokenHash: fixture.tokenHash,
         reservationId: fixture.reservationId,
         userId: raceUserId,
-        email: "redemption-user@example.invalid",
+        email: raceUserEmail,
       }),
       completeInvitationRedemption({
         tokenHash: fixture.tokenHash,
         reservationId: fixture.reservationId,
         userId: raceUserId,
-        email: "redemption-user@example.invalid",
+        email: raceUserEmail,
       }),
     ]);
 
@@ -155,7 +157,7 @@ suite("invitation redemption transaction (PostgreSQL integration)", () => {
         tokenHash: fixture.tokenHash,
         reservationId: fixture.reservationId,
         userId: raceUserId,
-        email: "redemption-user@example.invalid",
+        email: raceUserEmail,
       }),
     ).rejects.toThrow("reservation is no longer valid");
 
@@ -195,7 +197,7 @@ suite("invitation redemption transaction (PostgreSQL integration)", () => {
       tokenHash: fixture.tokenHash,
       reservationId: fixture.reservationId,
       userId: raceUserId,
-      email: "redemption-user@example.invalid",
+      email: raceUserEmail,
     });
 
     expect(
