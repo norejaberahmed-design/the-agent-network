@@ -315,7 +315,7 @@ model AgentRun {
   agentConfigurationVersion Int @default(1)
   providerConsentAt DateTime?
   providerConsentVersion String @default("ai-processing-v1") @db.VarChar(32)
-  expiresAt DateTime @default(dbgenerated("CURRENT_TIMESTAMP + INTERVAL '30 days'"))
+  expiresAt DateTime @default(dbgenerated("(CURRENT_TIMESTAMP + INTERVAL '30 days')"))
   task              String         @db.VarChar(4000)
   purpose           String         @db.VarChar(300)
   target            String         @db.VarChar(128)
