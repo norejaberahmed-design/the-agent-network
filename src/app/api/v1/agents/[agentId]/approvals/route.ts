@@ -121,6 +121,16 @@ export async function POST(request: Request, context: RouteContext) {
   if (!ownerId) return apiError("CONFLICT", 409);
 
   const result = await prisma.$transaction(async (tx) => {
+    const requesterMembership = await tx.membership.findFirst({
+      where: {
+        organizationId: agent.organizationOwnerId!,
+        userId: session.user.id,
+        role: { in: ["OWNER", "ADMIN"] },
+      },
+      select: { id: true },
+    });
+    if (!requesterMembership) return { state: "FORBIDDEN" as const };
+
     const existing = await tx.actionApproval.findUnique({
       where: { idempotencyKey: parsed.data.idempotencyKey },
       select: {
@@ -250,6 +260,7 @@ export async function POST(request: Request, context: RouteContext) {
     return { state: "CREATED" as const, approval: created };
   });
 
+  if (result.state === "FORBIDDEN") return apiError("FORBIDDEN", 403);
   if (result.state === "IDEMPOTENCY_CONFLICT") return apiError("CONFLICT", 409);
   if (result.state === "GRANT_NOT_FOUND") return apiError("NOT_FOUND", 404);
   if (result.state === "GRANT_INACTIVE") return apiError("CONFLICT", 409);
