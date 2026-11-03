@@ -197,6 +197,8 @@ export async function POST(request: Request, context: RouteContext) {
           ownerType: access.ownerType,
           ownerId: access.ownerId,
           agentConfigurationVersion: access.agent.configurationVersion,
+          providerConsentAt: now,
+          providerConsentVersion: "ai-processing-v1",
           task: input.task,
           purpose: input.purpose,
           target: input.target,
