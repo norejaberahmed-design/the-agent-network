@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { getAgentAccess } from "@/modules/agents/access";
 import { GrantManager } from "./grant-manager";
 import { FieldPolicyManager } from "./field-policy-manager";
+import { AgentLifecycleManager } from "./lifecycle-manager";
 
 export const dynamic = "force-dynamic";
 
@@ -72,6 +73,12 @@ export default async function AgentDetailPage({
           <span className="muted">الإصدار {access.agent.configurationVersion}</span>
         </div>
       </section>
+      <AgentLifecycleManager
+        agentId={agentId}
+        initialStatus={access.agent.status}
+        initialDiscoverable={access.agent.discoverable}
+        canManage={access.canManageFieldPolicies}
+      />
       {access.canViewFieldPolicies ? (
         <FieldPolicyManager
           agentId={agentId}
