@@ -134,9 +134,22 @@ export async function POST(request: Request, context: RouteContext) {
   if (!ownerId) return apiError("CONFLICT", 409);
 
   const result = await prisma.$transaction(async (tx) => {
+    const currentAgent = await tx.agent.findUnique({
+      where: { id: agentId },
+      select: { status: true, ownerType: true, organizationOwnerId: true },
+    });
+    if (!currentAgent) return { state: "GRANT_NOT_FOUND" as const };
+    if (
+      currentAgent.status !== "ACTIVE" ||
+      currentAgent.ownerType !== "ORGANIZATION" ||
+      currentAgent.organizationOwnerId !== agent.organizationOwnerId
+    ) {
+      return { state: "AGENT_INACTIVE" as const };
+    }
+
     const requesterMembership = await tx.membership.findFirst({
       where: {
-        organizationId: agent.organizationOwnerId!,
+        organizationId: currentAgent.organizationOwnerId!,
         userId: session.user.id,
         role: { in: ["OWNER", "ADMIN"] },
       },
@@ -223,7 +236,7 @@ export async function POST(request: Request, context: RouteContext) {
       data: [{
         id: approvalId,
         agentId,
-        organizationId: agent.organizationOwnerId,
+        organizationId: currentAgent.organizationOwnerId,
         grantId: grant.id,
         requesterUserId: session.user.id,
         actionType: parsed.data.actionType,
@@ -308,6 +321,7 @@ export async function POST(request: Request, context: RouteContext) {
   if (result.state === "FORBIDDEN") return apiError("FORBIDDEN", 403);
   if (result.state === "IDEMPOTENCY_CONFLICT") return apiError("CONFLICT", 409);
   if (result.state === "GRANT_NOT_FOUND") return apiError("NOT_FOUND", 404);
+  if (result.state === "AGENT_INACTIVE") return apiError("CONFLICT", 409);
   if (result.state === "GRANT_INACTIVE") return apiError("CONFLICT", 409);
   if (result.state === "GRANT_SCOPE_DENIED") return apiError("FORBIDDEN", 403);
 
