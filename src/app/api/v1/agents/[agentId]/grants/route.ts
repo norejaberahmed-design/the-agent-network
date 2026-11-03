@@ -17,7 +17,7 @@ export async function GET(_request: Request, context: RouteContext) {
 
   const { agentId } = await context.params;
   const access = await getAgentAccess(agentId, session.user.id);
-  if (!access?.canView) return apiError("FORBIDDEN", 403);
+  if (!access?.canViewGrants) return apiError("FORBIDDEN", 403);
 
   const grants = await prisma.permissionGrant.findMany({
     where: { agentId },
