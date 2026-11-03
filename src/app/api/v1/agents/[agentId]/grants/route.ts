@@ -105,6 +105,24 @@ export async function POST(request: Request, context: RouteContext) {
       },
     });
 
+    const capabilityKeys = created.actionScope.map((scope) =>
+      scope === "DISCOVER_INTERNAL" ? "READ_PUBLIC_PROFILE" : "SEARCH_PUBLIC_WEB"
+    );
+    for (const key of capabilityKeys) {
+      await tx.agentCapability.upsert({
+        where: { agentId_key: { agentId, key } },
+        create: {
+          agentId,
+          key,
+          description: key === "READ_PUBLIC_PROFILE"
+            ? "Read explicitly public agent profiles within an owner-approved internal discovery grant."
+            : "Search public web sources within an owner-approved grant.",
+          languages: ["ar", "en"],
+        },
+        update: {},
+      });
+    }
+
     await tx.auditEvent.create({
       data: {
         actorUserId: session.user.id,
