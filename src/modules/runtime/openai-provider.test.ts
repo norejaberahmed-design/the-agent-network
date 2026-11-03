@@ -178,6 +178,7 @@ describe("OpenAI moderation and local child-safety pre-screen", () => {
   it("blocks obvious credentials and API secrets locally", () => {
     expect(mayContainCredentialOrSecret("OPENAI_API_KEY=sk-123456789012345678901234")).toBe(true);
     expect(mayContainCredentialOrSecret("password: my-private-password")).toBe(true);
+    expect(mayContainCredentialOrSecret("sk-proj-123456789012345678901234567890")).toBe(true);
     expect(mayContainCredentialOrSecret("Research public supplier websites")).toBe(false);
   });
 
