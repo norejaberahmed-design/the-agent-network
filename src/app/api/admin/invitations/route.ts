@@ -72,7 +72,7 @@ export async function POST(request: Request) {
     {
       data: {
         ...invitation,
-        redemptionUrl: `${baseUrl}/accept-invitation?token=${token}`,
+        redemptionUrl: `${baseUrl}/accept-invitation#token=${token}`,
         token,
       },
       correlationId,
