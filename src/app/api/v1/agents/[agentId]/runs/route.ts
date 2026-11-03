@@ -70,7 +70,7 @@ export async function POST(request: Request, context: RouteContext) {
   if (!parsed.success) return apiError("VALIDATION_FAILED", 422, parsed.error.flatten());
 
   const input = parsed.data;
-  const requestDigest = digestAgentRunRequest(input);
+  const requestDigest = digestAgentRunRequest(input, agentId);
   const existing = await prisma.agentRun.findUnique({
     where: {
       requesterUserId_idempotencyKey: {
@@ -78,10 +78,10 @@ export async function POST(request: Request, context: RouteContext) {
         idempotencyKey: input.idempotencyKey,
       },
     },
-    select: { id: true, requestDigest: true, status: true, createdAt: true },
+    select: { id: true, agentId: true, requestDigest: true, status: true, createdAt: true },
   });
   if (existing) {
-    if (existing.requestDigest !== requestDigest) return apiError("CONFLICT", 409);
+    if (existing.agentId !== agentId || existing.requestDigest !== requestDigest) return apiError("CONFLICT", 409);
     return Response.json(
       { data: existing, idempotentReplay: true, executionEnabled: false },
       { headers: { "Cache-Control": "no-store" } },
@@ -108,30 +108,67 @@ export async function POST(request: Request, context: RouteContext) {
         dataScope: true,
         maxUses: true,
         uses: true,
+        reservedUses: true,
       },
     }),
   ]);
 
   const declared = new Set(capabilities.map((capability) => capability.key));
   const eligibleGrants = grants.filter((grant) =>
-    (grant.maxUses === null || grant.uses < grant.maxUses) &&
+    (grant.maxUses === null || grant.uses + grant.reservedUses < grant.maxUses) &&
     grant.dataScope.includes("PUBLIC_PROFILE")
   );
   const allowed = new Set<string>();
+  const grantIdsByAction = new Map<string, string[]>();
   for (const grant of eligibleGrants) {
     if (grant.actionScope.includes("DISCOVER_INTERNAL") && declared.has("READ_PUBLIC_PROFILE")) {
       allowed.add("READ_PUBLIC_PROFILE");
+      grantIdsByAction.set("READ_PUBLIC_PROFILE", [...(grantIdsByAction.get("READ_PUBLIC_PROFILE") ?? []), grant.id]);
     }
     if (grant.actionScope.includes("SEARCH_PUBLIC_WEB") && declared.has("SEARCH_PUBLIC_WEB")) {
       allowed.add("SEARCH_PUBLIC_WEB");
+      grantIdsByAction.set("SEARCH_PUBLIC_WEB", [...(grantIdsByAction.get("SEARCH_PUBLIC_WEB") ?? []), grant.id]);
     }
   }
   const authorizedActions = [...allowed].sort();
-  if (authorizedActions.length === 0) return apiError("FORBIDDEN", 403);
+  const selectedGrantIds = [...new Set(authorizedActions.flatMap((action) => grantIdsByAction.get(action) ?? []))].sort();
+  if (authorizedActions.length === 0 || selectedGrantIds.length === 0) return apiError("FORBIDDEN", 403);
 
   const correlationId = randomUUID();
   try {
     const created = await prisma.$transaction(async (tx) => {
+      for (const grantId of selectedGrantIds) {
+        const currentGrant = await tx.permissionGrant.findFirst({
+          where: {
+            id: grantId,
+            agentId,
+            purpose: input.purpose,
+            targetScope: { has: input.target },
+            dataScope: { has: "PUBLIC_PROFILE" },
+            status: "ACTIVE",
+            expiresAt: { gt: now },
+          },
+          select: { uses: true, reservedUses: true, maxUses: true, version: true },
+        });
+        if (!currentGrant || (
+          currentGrant.maxUses !== null &&
+          currentGrant.uses + currentGrant.reservedUses >= currentGrant.maxUses
+        )) throw new Error("GRANT_RESERVATION_CONFLICT");
+
+        const reserved = await tx.permissionGrant.updateMany({
+          where: {
+            id: grantId,
+            uses: currentGrant.uses,
+            reservedUses: currentGrant.reservedUses,
+            version: currentGrant.version,
+            status: "ACTIVE",
+            expiresAt: { gt: now },
+          },
+          data: { reservedUses: { increment: 1 } },
+        });
+        if (reserved.count !== 1) throw new Error("GRANT_RESERVATION_CONFLICT");
+      }
+
       const run = await tx.agentRun.create({
         data: {
           agentId,
@@ -142,6 +179,7 @@ export async function POST(request: Request, context: RouteContext) {
           purpose: input.purpose,
           target: input.target,
           authorizedActions,
+          grantIds: selectedGrantIds,
           requestDigest,
           idempotencyKey: input.idempotencyKey,
           status: "QUEUED",
@@ -174,6 +212,7 @@ export async function POST(request: Request, context: RouteContext) {
           correlationId,
           metadata: {
             authorizedActionCount: authorizedActions.length,
+            reservedGrantCount: selectedGrantIds.length,
             target: input.target,
             status: "QUEUED",
           },
@@ -197,7 +236,7 @@ export async function POST(request: Request, context: RouteContext) {
         },
         select: { id: true, requestDigest: true, status: true, createdAt: true },
       });
-      if (duplicate?.requestDigest === requestDigest) {
+      if (duplicate?.agentId === agentId && duplicate.requestDigest === requestDigest) {
         return Response.json(
           { data: duplicate, idempotentReplay: true, executionEnabled: false },
           { headers: { "Cache-Control": "no-store" } },
