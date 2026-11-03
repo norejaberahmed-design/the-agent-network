@@ -53,8 +53,8 @@ This repository is the engineering and product source of truth. Requirements, se
 The `build/platform-foundation-v1` branch contains an initial application scaffold:
 - Next.js App Router + TypeScript.
 - PostgreSQL + Prisma data model.
-- Better Auth email/password sign-in configuration with public sign-up disabled.
-- Health liveness/readiness endpoints.
+- Better Auth email/password sign-in with invitation-gated account creation and a one-time first-admin bootstrap.
+- Single-use, expiring invitation issuance and redemption, restricted to platform administrators.\n- Health liveness/readiness endpoints.
 - An authenticated, owner-scoped personal-agent create/list API.
 - Arabic-first landing page, sign-in page, and owner dashboard.
 - Initial agent input validation tests and CI workflow.
