@@ -137,6 +137,20 @@ export async function POST(request: Request, context: RouteContext) {
   const correlationId = randomUUID();
   try {
     const created = await prisma.$transaction(async (tx) => {
+      const activeAgent = await tx.agent.findFirst({
+        where: { id: agentId, status: "ACTIVE" },
+        select: { id: true },
+      });
+      if (!activeAgent) throw new Error("AGENT_NOT_ACTIVE");
+      if (access.ownerType === "ORGANIZATION") {
+        const membership = await tx.membership.findUnique({
+          where: { organizationId_userId: { organizationId: access.ownerId, userId: session.user.id } },
+          select: { role: true },
+        });
+        if (!membership || !["OWNER", "ADMIN", "AGENT_MANAGER"].includes(membership.role)) {
+          throw new Error("ACCESS_REVOKED");
+        }
+      }
       for (const grantId of selectedGrantIds) {
         const currentGrant = await tx.permissionGrant.findFirst({
           where: {
@@ -229,6 +243,8 @@ export async function POST(request: Request, context: RouteContext) {
     if (error instanceof Error && error.message === "GRANT_RESERVATION_CONFLICT") {
       return apiError("CONFLICT", 409);
     }
+    if (error instanceof Error && error.message === "AGENT_NOT_ACTIVE") return apiError("CONFLICT", 409);
+    if (error instanceof Error && error.message === "ACCESS_REVOKED") return apiError("FORBIDDEN", 403);
     if (isUniqueConstraintError(error)) {
       const duplicate = await prisma.agentRun.findUnique({
         where: {
