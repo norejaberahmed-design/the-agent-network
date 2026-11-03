@@ -18,7 +18,8 @@ export type AgentWorkerResult =
   | { status: "PLANNED"; runId: string; stepCount: number; sourceCount: number }
   | { status: "CANCELLED"; runId: string; reason: string }
   | { status: "FAILED" | "RETRY_SCHEDULED" | "DEAD_LETTER"; runId: string; code: string }
-  | { status: "DISABLED"; reason: "PROVIDER_NOT_CONFIGURED" };
+  | { status: "DISABLED"; reason: "PROVIDER_NOT_CONFIGURED" }
+  | { status: "THROTTLED"; reason: "DAILY_RUN_LIMIT" };
 
 type AuthorizationSnapshot = {
   agentName: string;
@@ -304,6 +305,15 @@ export async function runAgentWorkerOnce(args: {
   const { prisma, provider, moderator } = args;
   const workerId = args.workerId ?? randomUUID();
   const now = args.now ?? new Date();
+  const configuredDailyLimit = Number(process.env.OPENAI_AGENT_MAX_DAILY_RUNS ?? "20");
+  const dailyLimit = Number.isInteger(configuredDailyLimit) && configuredDailyLimit >= 0 && configuredDailyLimit <= 1000
+    ? configuredDailyLimit
+    : 20;
+  const last24Hours = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  const recentRunCount = await prisma.agentRun.count({ where: { createdAt: { gte: last24Hours } } });
+  if (dailyLimit === 0 || recentRunCount >= dailyLimit) {
+    return { status: "THROTTLED", reason: "DAILY_RUN_LIMIT" };
+  }
 
   const claimed = await claimNextRun(prisma, workerId, now);
   if (!claimed) return { status: "IDLE" };
