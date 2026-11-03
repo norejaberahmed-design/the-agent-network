@@ -28,7 +28,7 @@ export default async function OrganizationWorkspacePage({
     orderBy: { createdAt: "desc" },
   });
 
-  const canManage = ["OWNER", "ADMIN", "AGENT_MANAGER"].includes(membership.role);
+  const canManage = membership.role === "OWNER" || membership.role === "ADMIN" || membership.role === "AGENT_MANAGER";
 
   return (
     <main className="shell">
