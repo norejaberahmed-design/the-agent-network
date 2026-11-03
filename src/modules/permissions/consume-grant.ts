@@ -83,10 +83,9 @@ export async function consumePermissionGrantUse(
         agentId: input.agentId,
         status: "ACTIVE",
         expiresAt: { gt: now },
-        OR: [
-          { maxUses: null },
-          ...(grant.maxUses === null ? [] : [{ uses: { lt: grant.maxUses } }]),
-        ],
+        ...(grant.maxUses === null
+          ? { maxUses: null }
+          : { maxUses: grant.maxUses, uses: { lt: grant.maxUses } }),
       },
       data: { uses: { increment: 1 } },
     });
