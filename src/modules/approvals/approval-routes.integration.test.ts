@@ -151,6 +151,20 @@ suite("exact-payload action approval workflow (PostgreSQL integration)", () => {
     );
     expect(outsider.status).toBe(403);
 
+    setSessionUser(managerId);
+    const manager = await createApprovalRequest(
+      postRequest({
+        grantId: grant.id,
+        actionType: "SEND_MESSAGE",
+        recipient: "agent://target-1",
+        requestedDataScope: ["PUBLIC_PROFILE"],
+        payload: { message: "hello" },
+        idempotencyKey: "manager-request-denied",
+      }),
+      agentContext,
+    );
+    expect(manager.status).toBe(403);
+
     const badScopeGrant = await prisma.permissionGrant.create({
       data: {
         id: `approval-grant-bad-${suffix}`,
@@ -199,6 +213,7 @@ suite("exact-payload action approval workflow (PostgreSQL integration)", () => {
       where: { id: firstPayload.data.id },
     });
     expect(stored.payloadDigest).toBe(firstPayload.data.payloadDigest);
+    expect(stored.approvalDigest).toMatch(/^[a-f0-9]{64}$/);
     expect(stored.status).toBe("PENDING");
     await expect(
       prisma.auditEvent.count({
