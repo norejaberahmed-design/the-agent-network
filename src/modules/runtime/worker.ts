@@ -7,6 +7,7 @@ import {
 } from "./planner";
 import {
   mayContainChildSexualAbuse,
+  mayContainCredentialOrSecret,
   safetyIdentifierForUser,
   type TextModerator,
 } from "./openai-provider";
@@ -331,6 +332,9 @@ export async function runAgentWorkerOnce(args: {
 
   if (mayContainChildSexualAbuse(claimed.task)) {
     return failRun(prisma, claimed, workerId, "SAFETY_REVIEW_REQUIRED", false, new Date());
+  }
+  if (mayContainCredentialOrSecret(claimed.task)) {
+    return failRun(prisma, claimed, workerId, "SENSITIVE_INPUT_BLOCKED", false, new Date());
   }
 
   let inputModeration: { flagged: boolean };
