@@ -214,6 +214,7 @@ async function failRun(
   const nextStatus = shouldRetry ? "QUEUED" : terminalStatus;
   const delayMs = Math.min(60_000 * (2 ** Math.max(0, run.attemptCount - 1)), 15 * 60_000);
 
+  let updated = false;
   await prisma.$transaction(async (tx) => {
     const changed = await tx.agentRun.updateMany({
       where: { id: run.id, status: "PLANNING", workerId },
@@ -228,6 +229,7 @@ async function failRun(
       },
     });
     if (changed.count !== 1) return;
+    updated = true;
 
     if (!shouldRetry) await releaseReservations(tx, run);
 
@@ -252,6 +254,7 @@ async function failRun(
     });
   });
 
+  if (!updated) return { status: "CANCELLED", runId: run.id, reason: "RUN_NO_LONGER_OWNED" };
   if (shouldRetry) return { status: "RETRY_SCHEDULED", runId: run.id, code };
   return { status: retryable ? "DEAD_LETTER" : "FAILED", runId: run.id, code };
 }
