@@ -106,9 +106,11 @@ export async function POST(request: Request, context: RouteContext) {
       ownerType: true,
       userOwnerId: true,
       organizationOwnerId: true,
+      status: true,
     },
   });
   if (!agent) return apiError("NOT_FOUND", 404);
+  if (agent.status !== "ACTIVE") return apiError("CONFLICT", 409);
   if (agent.ownerType !== "ORGANIZATION" || !agent.organizationOwnerId) {
     return apiError("FORBIDDEN", 403);
   }
