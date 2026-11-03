@@ -37,7 +37,7 @@ Do not expose stack traces, SQL errors, secrets, internal prompts, or sensitive 
 | GET | /api/health/live | No | Process liveness | Implemented |
 | GET | /api/health/ready | No | Database readiness | Implemented |
 | GET | /api/v1/agents | Yes | List agents owned by current user | Implemented |
-| POST | /api/v1/agents | Yes | Create a private draft agent for current user | Implemented |
+| POST | /api/v1/agents | Yes | Create a private draft agent for current user | Implemented |\n| GET | /api/v1/organizations | Yes | List organizations where current user is a member | Implemented |\n| POST | /api/v1/organizations | Yes | Create organization and assign creator as OWNER | Implemented |\n| GET/POST | /api/v1/organizations/{organizationId}/agents | Yes | List/create organization-owned agents with role checks | Implemented |
 | GET/POST | /api/auth/* | Auth-specific | Sign-in/session and invitation-gated signup | Mounted |\n| POST | /api/admin/invitations | Platform admin | Issue a single-use invitation; token returned once | Implemented |
 
 The canonical agent routes are /api/v1/agents. A temporary /api/agents alias remains for compatibility during the initial build; no public API compatibility promise has been made yet.
