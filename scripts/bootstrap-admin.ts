@@ -15,10 +15,21 @@ async function main() {
 
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) {
-    if (existing.platformRole !== "PLATFORM_ADMIN") {
-      throw new Error("The bootstrap email already exists but is not a platform administrator.");
+    if (existing.platformRole === "PLATFORM_ADMIN") {
+      console.log("Platform administrator already exists; no changes made.");
+      return;
     }
-    console.log("Platform administrator already exists; no changes made.");
+
+    const promoted = await prisma.user.update({
+      where: { id: existing.id },
+      data: { platformRole: "PLATFORM_ADMIN" },
+      select: { email: true, platformRole: true },
+    });
+    if (promoted.platformRole !== "PLATFORM_ADMIN") {
+      throw new Error("Could not complete the first-admin bootstrap.");
+    }
+    console.log(`Promoted the configured bootstrap account to platform administrator: ${promoted.email}`);
+    console.log("Remove TAN_BOOTSTRAP_TOKEN and TAN_BOOTSTRAP_ADMIN_* values from the runtime environment now.");
     return;
   }
 
