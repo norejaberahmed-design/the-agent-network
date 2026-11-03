@@ -2,6 +2,8 @@ import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { headers } from "next/headers";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
+import { apiError } from "@/lib/api-response";
+import { isTrustedMutationRequest } from "@/lib/request-security";
 import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
@@ -12,9 +14,11 @@ const invitationSchema = z.object({
 });
 
 export async function POST(request: Request) {
+  if (!isTrustedMutationRequest(request)) return apiError("INVALID_ORIGIN", 403);
+
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) {
-    return Response.json({ error: "UNAUTHENTICATED" }, { status: 401 });
+    return apiError("UNAUTHENTICATED", 401);
   }
 
   const actor = await prisma.user.findUnique({
@@ -22,19 +26,19 @@ export async function POST(request: Request) {
     select: { platformRole: true },
   });
   if (actor?.platformRole !== "PLATFORM_ADMIN") {
-    return Response.json({ error: "FORBIDDEN" }, { status: 403 });
+    return apiError("FORBIDDEN", 403);
   }
 
   let input: unknown;
   try {
     input = await request.json();
   } catch {
-    return Response.json({ error: "INVALID_JSON" }, { status: 400 });
+    return apiError("INVALID_JSON", 400);
   }
 
   const parsed = invitationSchema.safeParse(input);
   if (!parsed.success) {
-    return Response.json({ error: "VALIDATION_FAILED" }, { status: 422 });
+    return apiError("VALIDATION_FAILED", 422, parsed.error.flatten());
   }
 
   const token = randomBytes(32).toString("base64url");
