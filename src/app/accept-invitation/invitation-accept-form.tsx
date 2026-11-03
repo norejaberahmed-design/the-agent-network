@@ -24,11 +24,9 @@ export function InvitationAcceptForm({ token }: { token: string }) {
       const result = await authClient.signUp.email(
         { name, email, password },
         {
-          fetchOptions: {
-            headers: {
-              "x-invitation-token": token,
-              "x-invitation-reservation-id": crypto.randomUUID(),
-            },
+          headers: {
+            "x-invitation-token": token,
+            "x-invitation-reservation-id": crypto.randomUUID(),
           },
         },
       );
