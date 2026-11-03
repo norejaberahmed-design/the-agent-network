@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { prisma } from "@/lib/prisma";
 import { AgentPlanProviderError, type AgentPlanProvider } from "./planner";
 import { runAgentWorkerOnce } from "./worker";
+import { purgeExpiredAgentRuns } from "./retention";
 import type { TextModerator } from "./openai-provider";
 
 const enabled = process.env.RUN_DB_INTEGRATION === "1";
@@ -350,6 +351,23 @@ suite("agent worker (PostgreSQL integration)", () => {
     resolvePlan(plan);
     const firstResult = await firstWorker;
     expect(firstResult).toMatchObject({ status: "PLANNED", runId: run.id });
+  });
+
+  it("purges expired queued runs, audits deletion, and releases reserved grants", async () => {
+    const run = await createRun({ idempotencyKey: `worker-retention-${suffix}` });
+    const expiredAt = new Date(Date.now() - 1_000);
+    await prisma.agentRun.update({ where: { id: run.id }, data: { expiresAt: expiredAt } });
+
+    const result = await purgeExpiredAgentRuns(prisma, new Date());
+
+    expect(result).toMatchObject({ deleted: 1, cancelled: 1 });
+    await expect(prisma.agentRun.findUnique({ where: { id: run.id } })).resolves.toBeNull();
+    const grant = await prisma.permissionGrant.findUniqueOrThrow({ where: { id: grantId } });
+    expect(grant.reservedUses).toBe(0);
+    const audit = await prisma.auditEvent.findFirst({
+      where: { agentId, targetId: run.id, action: "agent.run.expired" },
+    });
+    expect(audit).not.toBeNull();
   });
 
   it("enforces the configured global daily queue ceiling before claiming", async () => {
