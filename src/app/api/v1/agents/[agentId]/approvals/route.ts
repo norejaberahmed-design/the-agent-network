@@ -206,8 +206,8 @@ export async function POST(request: Request, context: RouteContext) {
       idempotencyKey: parsed.data.idempotencyKey,
     });
 
-    const created = await tx.actionApproval.create({
-      data: {
+    const inserted = await tx.actionApproval.createMany({
+      data: [{
         id: approvalId,
         agentId,
         organizationId: agent.organizationOwnerId,
@@ -221,7 +221,39 @@ export async function POST(request: Request, context: RouteContext) {
         payloadPreview: payloadPreview as Prisma.InputJsonValue,
         idempotencyKey: parsed.data.idempotencyKey,
         expiresAt,
-      },
+      }],
+      skipDuplicates: true,
+    });
+    if (inserted.count === 0) {
+      const duplicate = await tx.actionApproval.findUnique({
+        where: { idempotencyKey: parsed.data.idempotencyKey },
+        select: {
+          id: true,
+          agentId: true,
+          grantId: true,
+          actionType: true,
+          recipient: true,
+          requestedDataScope: true,
+          payloadDigest: true,
+          status: true,
+        },
+      });
+      if (!duplicate) return { state: "IDEMPOTENCY_CONFLICT" as const };
+      const sameRequest =
+        duplicate.agentId === agentId &&
+        duplicate.grantId === parsed.data.grantId &&
+        duplicate.actionType === parsed.data.actionType &&
+        duplicate.recipient === parsed.data.recipient &&
+        duplicate.payloadDigest === payloadDigest &&
+        [...duplicate.requestedDataScope].sort().join("|") ===
+          [...parsed.data.requestedDataScope].sort().join("|");
+      return sameRequest
+        ? { state: "EXISTING" as const, id: duplicate.id, status: duplicate.status }
+        : { state: "IDEMPOTENCY_CONFLICT" as const };
+    }
+
+    const created = await tx.actionApproval.findUniqueOrThrow({
+      where: { id: approvalId },
       select: {
         id: true,
         actionType: true,
