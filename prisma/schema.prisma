@@ -1,0 +1,258 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum MembershipRole {
+  OWNER
+  ADMIN
+  AGENT_MANAGER
+  OPERATOR
+  AUDITOR
+  VIEWER
+}
+
+enum AgentOwnerType {
+  USER
+  ORGANIZATION
+}
+
+enum AgentStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  SUSPENDED
+  REVOKED
+}
+
+enum DataClassification {
+  PUBLIC
+  CONTEXTUAL
+  PRIVATE
+  HIGHLY_SENSITIVE
+}
+
+enum GrantStatus {
+  ACTIVE
+  REVOKED
+  EXPIRED
+}
+
+enum InvitationStatus {
+  PENDING
+  REDEEMED
+  REVOKED
+  EXPIRED
+}
+
+enum AuditOutcome {
+  ALLOWED
+  DENIED
+  COMPLETED
+  FAILED
+}
+
+model User {
+  id            String       @id @default(cuid())
+  name          String?
+  email         String       @unique
+  emailVerified Boolean      @default(false)
+  image         String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  sessions      Session[]
+  accounts      Account[]
+  memberships   Membership[]
+  ownedAgents   Agent[]      @relation("UserOwnedAgents")
+  invitations   Invitation[] @relation("InvitationCreatedBy")
+  auditEvents   AuditEvent[] @relation("AuditActor")
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  expiresAt DateTime
+  token     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Account {
+  id                    String    @id @default(cuid())
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@unique([providerId, accountId])
+  @@index([userId])
+}
+
+model Verification {
+  id         String   @id @default(cuid())
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+}
+
+model Organization {
+  id          String       @id @default(cuid())
+  name        String
+  slug        String       @unique
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  memberships Membership[]
+  agents      Agent[]
+  invitations Invitation[]
+}
+
+model Membership {
+  id             String         @id @default(cuid())
+  organizationId String
+  userId         String
+  role           MembershipRole
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId])
+  @@index([userId, role])
+}
+
+model Invitation {
+  id             String           @id @default(cuid())
+  tokenHash      String           @unique
+  intendedEmail  String?
+  organizationId String?
+  role           MembershipRole?
+  status         InvitationStatus @default(PENDING)
+  expiresAt      DateTime
+  redeemedAt     DateTime?
+  createdById    String
+  createdAt      DateTime         @default(now())
+  organization   Organization?    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy      User             @relation("InvitationCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([status, expiresAt])
+  @@index([intendedEmail])
+}
+
+model Agent {
+  id                String          @id @default(cuid())
+  ownerType         AgentOwnerType
+  userOwnerId       String?
+  organizationOwnerId String?
+  name              String
+  publicDescription String?
+  purpose           String
+  primaryLanguage   String          @default("ar")
+  supportedLanguages String[]       @default(["ar", "en"])
+  discoverable      Boolean         @default(false)
+  status            AgentStatus     @default(DRAFT)
+  configurationVersion Int          @default(1)
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  userOwner         User?           @relation("UserOwnedAgents", fields: [userOwnerId], references: [id], onDelete: Restrict)
+  organizationOwner Organization?   @relation(fields: [organizationOwnerId], references: [id], onDelete: Restrict)
+  capabilities      AgentCapability[]
+  fieldPolicies     AgentFieldPolicy[]
+  grants            PermissionGrant[]
+  auditEvents       AuditEvent[]
+
+  @@index([ownerType, userOwnerId])
+  @@index([ownerType, organizationOwnerId])
+  @@index([status, discoverable])
+}
+
+model AgentCapability {
+  id          String   @id @default(cuid())
+  agentId     String
+  key         String
+  description String
+  languages   String[] @default([])
+  createdAt   DateTime @default(now())
+  agent       Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@unique([agentId, key])
+}
+
+model AgentFieldPolicy {
+  id             String              @id @default(cuid())
+  agentId        String
+  fieldKey       String
+  classification DataClassification
+  publicVisible  Boolean             @default(false)
+  allowedPurposes String[]           @default([])
+  allowedAudiences String[]          @default([])
+  retentionDays  Int?
+  policyVersion  Int                 @default(1)
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  agent          Agent               @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@unique([agentId, fieldKey])
+}
+
+model PermissionGrant {
+  id             String      @id @default(cuid())
+  agentId        String
+  purpose        String
+  actionScope    String[]
+  targetScope    String[]
+  dataScope      String[]
+  expiresAt      DateTime
+  maxUses        Int?
+  uses           Int         @default(0)
+  version        Int         @default(1)
+  status         GrantStatus @default(ACTIVE)
+  createdAt      DateTime    @default(now())
+  revokedAt      DateTime?
+  agent          Agent       @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@index([agentId, status, expiresAt])
+}
+
+model AuditEvent {
+  id             String       @id @default(cuid())
+  actorUserId    String?
+  agentId        String?
+  ownerType      AgentOwnerType?
+  ownerId        String?
+  action         String
+  targetType     String?
+  targetId       String?
+  outcome        AuditOutcome
+  policyVersion  String?
+  correlationId  String
+  metadata       Json?
+  occurredAt     DateTime     @default(now())
+  actor          User?        @relation("AuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+  agent          Agent?       @relation(fields: [agentId], references: [id], onDelete: SetNull)
+
+  @@index([ownerType, ownerId, occurredAt])
+  @@index([agentId, occurredAt])
+  @@index([correlationId])
+}
