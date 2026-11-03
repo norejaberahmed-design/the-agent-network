@@ -171,6 +171,23 @@ suite("agent worker (PostgreSQL integration)", () => {
     expect(grant.reservedUses).toBe(0);
   });
 
+  it("blocks obvious credentials before sending task text to any provider", async () => {
+    const run = await createRun({
+      idempotencyKey: `worker-secret-screen-${suffix}`,
+      task: "Use this password: my-private-password",
+    });
+    const provider = successfulProvider();
+    const moderator = successfulModerator();
+
+    const result = await runAgentWorkerOnce({ prisma, provider, moderator, workerId: "worker-secret-screen" });
+
+    expect(result).toMatchObject({ status: "FAILED", code: "SENSITIVE_INPUT_BLOCKED" });
+    expect(provider.generatePlan).not.toHaveBeenCalled();
+    expect(moderator.moderate).not.toHaveBeenCalled();
+    const saved = await prisma.agentRun.findUniqueOrThrow({ where: { id: run.id } });
+    expect(saved.status).toBe("FAILED");
+  });
+
   it("fails closed when input moderation flags a task", async () => {
     const run = await createRun({ idempotencyKey: `worker-moderation-${suffix}` });
     const provider = successfulProvider();
