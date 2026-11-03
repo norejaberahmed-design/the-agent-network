@@ -203,8 +203,8 @@ export function FieldPolicyManager({
             />
             إظهار هذا الحقل للعامة
           </label>
-          <div className="field"><label htmlFor="policy-purposes">الأغراض المسموحة (افصل بينها بفاصلة)</label><input id="policy-purposes" value={purposes} onChange={(event) => setPurposes(event.target.value)} placeholder="agent-discovery, profile-view" /></div>
-          <div className="field"><label htmlFor="policy-audiences">الجمهور المسموح (افصل بينهم بفاصلة)</label><input id="policy-audiences" value={audiences} onChange={(event) => setAudiences(event.target.value)} placeholder="network-agents, verified-organizations" /></div>
+          <div className="field"><label htmlFor="policy-purposes">الأغراض المسموحة (افصل بينها بفاصلة)</label><input id="policy-purposes" value={purposes} onChange={(event) => setPurposes(event.target.value)} placeholder="PUBLIC_AGENT_DISCOVERY, internal-review" /></div>
+          <div className="field"><label htmlFor="policy-audiences">الجمهور المسموح (افصل بينهم بفاصلة)</label><input id="policy-audiences" value={audiences} onChange={(event) => setAudiences(event.target.value)} placeholder="PUBLIC_NETWORK, verified-organizations" /></div>
           <div className="field"><label htmlFor="policy-retention">مدة الاحتفاظ بالأيام (اختياري)</label><input id="policy-retention" type="number" min={1} max={3650} value={retentionDays} onChange={(event) => setRetentionDays(event.target.value)} /></div>
           {error ? <p className="error" role="alert">{error}</p> : null}
           <div><button className="button" type="submit" disabled={busy || (publicVisible && classification !== "PUBLIC")}>{busy ? "جارٍ الحفظ..." : "حفظ سياسة الحقل"}</button></div>
