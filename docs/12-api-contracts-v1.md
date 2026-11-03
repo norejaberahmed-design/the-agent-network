@@ -36,11 +36,18 @@ Do not expose stack traces, SQL errors, secrets, internal prompts, or sensitive 
 |---|---|---|---|---|
 | GET | /api/health/live | No | Process liveness | Implemented |
 | GET | /api/health/ready | No | Database readiness | Implemented |
-| GET | /api/v1/agents | Yes | List agents owned by current user | Implemented |
-| POST | /api/v1/agents | Yes | Create a private draft agent for current user | Implemented |\n| GET | /api/v1/organizations | Yes | List organizations where current user is a member | Implemented |\n| POST | /api/v1/organizations | Yes | Create organization and assign creator as OWNER | Implemented |\n| GET/POST | /api/v1/organizations/{organizationId}/agents | Yes | List/create organization-owned agents with role checks | Implemented |\n| GET/POST | /api/v1/agents/{agentId}/grants | Yes | List/create scoped, expiring grants | Implemented; execution disabled |\n| POST | /api/v1/agents/{agentId}/grants/{grantId}/revoke | Yes | Revoke an active grant | Implemented |\n| GET/POST | /api/v1/agents/{agentId}/field-policies | Yes | Read/update field-level disclosure policies | Implemented; outbound enforcement pending |
-| GET/POST | /api/auth/* | Auth-specific | Sign-in/session and invitation-gated signup | Mounted |\n| POST | /api/admin/invitations | Platform admin | Issue a single-use invitation; token returned once | Implemented |
+| GET | /api/v1/agents | Yes | List personal agents owned by current user | Implemented |
+| POST | /api/v1/agents | Yes | Create a private draft personal agent | Implemented |
+| GET | /api/v1/organizations | Yes | List organizations where current user is a member | Implemented |
+| POST | /api/v1/organizations | Yes | Create organization and assign creator as OWNER | Implemented |
+| GET/POST | /api/v1/organizations/{organizationId}/agents | Yes | List/create organization-owned agents with role checks | Implemented |
+| GET/POST | /api/v1/agents/{agentId}/grants | Yes | List/create scoped, expiring grants | Implemented; execution disabled |
+| POST | /api/v1/agents/{agentId}/grants/{grantId}/revoke | Yes | Revoke an active grant | Implemented |
+| GET/POST | /api/v1/agents/{agentId}/field-policies | Yes | Read/update field-level disclosure policies | Implemented; outbound enforcement pending |
+| GET/POST | /api/auth/* | Auth-specific | Sign-in/session and invitation-gated signup | Mounted |
+| POST | /api/admin/invitations | Platform admin | Issue a single-use invitation; token returned once | Implemented |
 
-The canonical agent routes are /api/v1/agents. A temporary /api/agents alias remains for compatibility during the initial build; no public API compatibility promise has been made yet.
+The canonical agent routes are under /api/v1. A temporary /api/agents alias remains during the initial build; no public API compatibility promise has been made yet.
 
 ## 4. Create agent
 
@@ -63,19 +70,32 @@ Rules:
 - discoverable is always false on creation.
 - status is always DRAFT on creation.
 - owner identity is derived from the authenticated session, never request JSON.
+- conservative field disclosure policies are created in the same transaction.
 
 Response: 201 with the created agent and correlationId.
 
-## 5. List agents
+## 5. Organization ownership
 
-Returns only agents whose owner type is USER and user owner ID equals the authenticated user ID. Organization agents are not included until membership authorization is implemented.
+- Organization creation creates an OWNER membership for the authenticated user in the same transaction.
+- Organization agent reads require membership.
+- Organization agent creation requires OWNER, ADMIN, or AGENT_MANAGER.
+- Agent ownership is stored against the organization, not the employee who created it.
+- Organization member invitation, role changes, offboarding, and ownership transfer are not implemented yet.
 
-## 6. Required future contracts before activation
+## 6. Grants and disclosure policies
 
-- Organization and membership management.
-- Invitation issue, reserve, redeem, revoke, and expiry.
-- Field disclosure preview and policy evaluation.
-- Permission grant issue, inspect, revoke, and version.
+- Grant creation requires agent management authority.
+- Grants are scoped to declared actions, targets, data scopes, expiry, and optional use limits.
+- Wildcard targets are rejected.
+- Revocation is conditional and increments the grant version.
+- No action runner consumes grants yet; API responses explicitly state execution is disabled.
+- Field policies classify the initial agent fields and prevent non-PUBLIC fields from being marked publicly visible.
+- No outbound disclosure pipeline consumes these policies yet; do not interpret stored policy records as proof of enforcement in a live discovery or messaging flow.
+
+## 7. Required future contracts before activation
+
+- Invitation issue, reserve, redeem, revoke, and expiry lifecycle for organization membership.
+- Field disclosure preview and policy evaluation at every outbound boundary.
 - Approval request, owner decision, one-time execution, and replay rejection.
 - Discovery query, candidate, source, claim, and evidence.
 - Agent-to-agent messaging and abuse controls.
