@@ -44,6 +44,7 @@ enum GrantStatus {
 
 enum InvitationStatus {
   PENDING
+  RESERVED
   REDEEMED
   REVOKED
   EXPIRED
@@ -60,6 +61,7 @@ model User {
   id            String       @id @default(cuid())
   name          String
   email         String       @unique
+  platformRole  String       @default("MEMBER")
   emailVerified Boolean      @default(false)
   image         String?
   createdAt     DateTime     @default(now())
@@ -151,6 +153,8 @@ model Invitation {
   status         InvitationStatus @default(PENDING)
   expiresAt      DateTime
   redeemedAt     DateTime?
+  reservationId  String?          @unique
+  reservationExpiresAt DateTime?
   createdById    String
   createdAt      DateTime         @default(now())
   organization   Organization?    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
