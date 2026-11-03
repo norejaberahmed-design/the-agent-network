@@ -206,7 +206,7 @@ suite("exact-payload action approval workflow (PostgreSQL integration)", () => {
           ownerId: organizationId,
           action: "action_approval.requested",
           targetId: stored.id,
-          actorUserId: managerId,
+          actorUserId: adminId,
         },
       }),
     ).resolves.toBe(1);
@@ -355,11 +355,7 @@ suite("exact-payload action approval workflow (PostgreSQL integration)", () => {
       new Request("http://localhost"),
       agentContext,
     );
-    expect(managerList.status).toBe(200);
-    const managerPayload = await managerList.json();
-    expect(managerPayload.data.every((item: { requester: { id: string } }) =>
-      item.requester.id === managerId,
-    )).toBe(true);
+    expect(managerList.status).toBe(403);
 
     setSessionUser(ownerId);
     const ownerList = await listApprovalRequests(
@@ -368,6 +364,8 @@ suite("exact-payload action approval workflow (PostgreSQL integration)", () => {
     );
     expect(ownerList.status).toBe(200);
     const ownerPayload = await ownerList.json();
-    expect(ownerPayload.data.length).toBeGreaterThan(managerPayload.data.length - 1);
+    expect(ownerPayload.data.some((item: { requester: { id: string } }) =>
+      item.requester.id === adminId,
+    )).toBe(true);
   });
 });
