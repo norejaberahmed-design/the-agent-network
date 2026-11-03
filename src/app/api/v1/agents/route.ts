@@ -42,7 +42,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  if (!isTrustedMutationRequest(request)) return apiError("INVALID_ORIGIN", 403);
+  if (!(await isTrustedMutationRequest(request))) return apiError("INVALID_ORIGIN", 403);
 
   const user = await getAuthenticatedUser();
   if (!user) return apiError("UNAUTHENTICATED", 401);
