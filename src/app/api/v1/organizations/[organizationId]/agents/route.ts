@@ -44,7 +44,13 @@ export async function GET(_request: Request, context: RouteContext) {
     orderBy: { createdAt: "desc" },
   });
 
-  return Response.json({ data: agents }, { headers: { "Cache-Control": "no-store" } });
+  const visibleAgents = membership.role === "VIEWER"
+    ? agents.map(({ id, name, primaryLanguage, status, createdAt }) => ({
+        id, name, primaryLanguage, status, createdAt,
+      }))
+    : agents;
+
+  return Response.json({ data: visibleAgents }, { headers: { "Cache-Control": "no-store" } });
 }
 
 export async function POST(request: Request, context: RouteContext) {
