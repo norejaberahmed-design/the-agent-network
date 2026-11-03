@@ -12,6 +12,7 @@ type Grant = {
   expiresAt: string;
   maxUses: number | null;
   uses: number;
+  reservedUses: number;
   version: number;
   status: string;
   createdAt: string;
