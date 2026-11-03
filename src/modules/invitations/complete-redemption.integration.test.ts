@@ -8,6 +8,7 @@ const suite = enabled ? describe : describe.skip;
 const suffix = randomUUID();
 const adminId = `redemption-admin-${suffix}`;
 const userId = `redemption-user-${suffix}`;
+const raceUserId = `redemption-race-user-${suffix}`;
 const organizationId = `redemption-org-${suffix}`;
 
 suite("invitation redemption transaction (PostgreSQL integration)", () => {
@@ -24,6 +25,11 @@ suite("invitation redemption transaction (PostgreSQL integration)", () => {
           id: userId,
           name: "Redemption Test User",
           email: `redemption-user-${suffix}@example.invalid`,
+        },
+        {
+          id: raceUserId,
+          name: "Redemption Race Test User",
+          email: `redemption-race-user-${suffix}@example.invalid`,
         },
       ],
     });
@@ -48,7 +54,7 @@ suite("invitation redemption transaction (PostgreSQL integration)", () => {
     await prisma.membership.deleteMany({ where: { organizationId } });
     await prisma.invitation.deleteMany({ where: { createdById: adminId } });
     await prisma.organization.deleteMany({ where: { id: organizationId } });
-    await prisma.user.deleteMany({ where: { id: { in: [adminId, userId] } } });
+    await prisma.user.deleteMany({ where: { id: { in: [adminId, userId, raceUserId] } } });
   });
 
   async function createReservedInvitation(options?: {
@@ -117,13 +123,13 @@ suite("invitation redemption transaction (PostgreSQL integration)", () => {
       completeInvitationRedemption({
         tokenHash: fixture.tokenHash,
         reservationId: fixture.reservationId,
-        userId,
+        userId: raceUserId,
         email: "redemption-user@example.invalid",
       }),
       completeInvitationRedemption({
         tokenHash: fixture.tokenHash,
         reservationId: fixture.reservationId,
-        userId,
+        userId: raceUserId,
         email: "redemption-user@example.invalid",
       }),
     ]);
@@ -148,7 +154,7 @@ suite("invitation redemption transaction (PostgreSQL integration)", () => {
       completeInvitationRedemption({
         tokenHash: fixture.tokenHash,
         reservationId: fixture.reservationId,
-        userId,
+        userId: raceUserId,
         email: "redemption-user@example.invalid",
       }),
     ).rejects.toThrow("reservation is no longer valid");
@@ -166,7 +172,7 @@ suite("invitation redemption transaction (PostgreSQL integration)", () => {
       completeInvitationRedemption({
         tokenHash: fixture.tokenHash,
         reservationId: fixture.reservationId,
-        userId,
+        userId: raceUserId,
         email: "attacker@example.invalid",
       }),
     ).rejects.toThrow("assigned to another email");
@@ -188,7 +194,7 @@ suite("invitation redemption transaction (PostgreSQL integration)", () => {
     await completeInvitationRedemption({
       tokenHash: fixture.tokenHash,
       reservationId: fixture.reservationId,
-      userId,
+      userId: raceUserId,
       email: "redemption-user@example.invalid",
     });
 
