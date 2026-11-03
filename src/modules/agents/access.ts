@@ -27,6 +27,9 @@ export async function getAgentAccess(agentId: string, userId: string) {
     return {
       agent,
       canView: true,
+      canViewPrivate: true,
+      canViewGrants: true,
+      canViewFieldPolicies: true,
       canManage: true,
       canManagePermissions: true,
       ownerType: "USER" as const,
@@ -49,6 +52,9 @@ export async function getAgentAccess(agentId: string, userId: string) {
   return {
     agent,
     canView: true,
+    canViewPrivate: membership.role !== "VIEWER",
+    canViewGrants: membership.role === "OWNER" || membership.role === "ADMIN" || membership.role === "AUDITOR",
+    canViewFieldPolicies: membership.role === "OWNER" || membership.role === "ADMIN" || membership.role === "AGENT_MANAGER" || membership.role === "AUDITOR",
     canManage: MANAGER_ROLES.includes(membership.role as (typeof MANAGER_ROLES)[number]),
     canManagePermissions: membership.role === "OWNER" || membership.role === "ADMIN",
     ownerType: "ORGANIZATION" as const,
