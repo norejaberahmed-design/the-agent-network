@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { POST as createRun } from "../../app/api/v1/agents/[agentId]/runs/route";
+import { POST as cancelRun } from "../../app/api/v1/agents/[agentId]/runs/[runId]/cancel/route";
 
 vi.mock("next/headers", () => ({
   headers: vi.fn(async () => new Headers()),
@@ -21,6 +22,7 @@ const ownerId = `run-owner-${suffix}`;
 const outsiderId = `run-outsider-${suffix}`;
 const agentId = `run-agent-${suffix}`;
 const grantId = `run-grant-${suffix}`;
+let queuedRunId = "";
 
 const setSessionUser = (userId: string | null) => {
   vi.mocked(auth.api.getSession).mockResolvedValue(
@@ -112,6 +114,7 @@ suite("agent run queue API (PostgreSQL integration)", () => {
       authorizedActions: ["SEARCH_PUBLIC_WEB"],
     });
     expect(firstBody.executionEnabled).toBe(false);
+    queuedRunId = firstBody.data.id;
 
     const replay = await createRun(request(payload()), context(agentId));
     expect(replay.status).toBe(200);
@@ -140,6 +143,21 @@ suite("agent run queue API (PostgreSQL integration)", () => {
         where: { agentId, action: "agent.run.queued", actorUserId: ownerId },
       }),
     ).resolves.toBe(1);
+  });
+
+  it("cancels a queued run and releases its reserved grant use", async () => {
+    setSessionUser(ownerId);
+    const response = await cancelRun(request({}), {
+      params: Promise.resolve({ agentId, runId: queuedRunId }),
+    });
+    expect(response.status).toBe(200);
+    await expect(
+      prisma.permissionGrant.findUniqueOrThrow({ where: { id: grantId } }).then((grant) => grant.reservedUses),
+    ).resolves.toBe(0);
+    const replay = await cancelRun(request({}), {
+      params: Promise.resolve({ agentId, runId: queuedRunId }),
+    });
+    expect(replay.status).toBe(409);
   });
 
   it("does not replay the same idempotency key across different agents", async () => {
