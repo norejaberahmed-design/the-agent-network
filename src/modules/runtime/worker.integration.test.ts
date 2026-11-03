@@ -106,7 +106,6 @@ suite("agent worker (PostgreSQL integration)", () => {
 
   afterAll(async () => {
     await prisma.auditEvent.deleteMany({ where: { agentId } });
-    await prisma.agentRunStep.deleteMany({ where: { run: { agentId } } });
     await prisma.agentRun.deleteMany({ where: { agentId } });
     await prisma.permissionGrant.deleteMany({ where: { id: grantId } });
     await prisma.agentCapability.deleteMany({ where: { agentId } });
