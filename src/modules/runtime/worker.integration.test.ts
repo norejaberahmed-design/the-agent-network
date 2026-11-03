@@ -202,6 +202,10 @@ suite("agent worker (PostgreSQL integration)", () => {
     expect(saved).toMatchObject({ status: "QUEUED", attemptCount: 1, workerId: null });
     const grant = await prisma.permissionGrant.findUniqueOrThrow({ where: { id: grantId } });
     expect(grant.reservedUses).toBe(1);
+    await prisma.agentRun.update({
+      where: { id: run.id },
+      data: { availableAt: new Date(Date.now() + 24 * 60 * 60 * 1000) },
+    });
   });
 
   it("dead-letters a run after the retry ceiling and releases its reservation", async () => {
