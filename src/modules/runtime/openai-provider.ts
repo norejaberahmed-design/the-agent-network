@@ -296,7 +296,7 @@ export class OpenAITextModerator implements TextModerator {
  */
 export function mayContainChildSexualAbuse(text: string): boolean {
   const normalized = text.normalize("NFKC").toLocaleLowerCase();
-  const childSignals = /\b(child|children|kid|kids|minor|underage|schoolgirl|schoolboy|juvenile|teen(?:ager)?)\b|طفل|طفلة|أطفال|اطفال|قاصر|قاصرين|دون\s*18/u;
+  const childSignals = /\b(child|children|kid|kids|minor|minors|underage|schoolgirl|schoolboy|juvenile|teen(?:ager)?)\b|طفل|طفلة|أطفال|اطفال|قاصر|قاصرين|دون\s*18/u;
   const sexualSignals = /\b(sex|sexual|sexually|porn|nude|naked|explicit|abuse|exploitation|molest|groom|rape)\b|جنس|جنسي|إباحي|اباحي|عاري|استغلال/u;
   const explicitSignals = /\bcsam\b|child\s+(?:pornography|porn)|child\s+sexual\s+abuse|sexual\s+exploitation\s+of\s+(?:children|minors)|استغلال\s+جنسي\s+للأطفال|مواد\s+إباحية\s+للأطفال/u;
   return explicitSignals.test(normalized) ||
@@ -305,6 +305,7 @@ export function mayContainChildSexualAbuse(text: string): boolean {
 
 export function mayContainCredentialOrSecret(text: string): boolean {
   const patterns = [
+    /(?:^|\\b)[A-Z0-9_]*(?:API[_-]?KEY|PASSWORD|PASSWD|SECRET|ACCESS[_-]?TOKEN)\\s*[:=]\\s*[^\\s]+/iu,
     /\\b(?:password|passwd|api[_-]?key|secret|access[_-]?token)\\s*[:=]\\s*[^\\s]+/iu,
     /\\bsk-(?:proj-|or-v1-)?[A-Za-z0-9_-]{20,}\\b/iu,
     /\\bsk_(?:live|test)_[A-Za-z0-9]{16,}\\b/u,
