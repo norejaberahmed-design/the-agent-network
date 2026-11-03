@@ -34,6 +34,18 @@ export async function GET(request: Request, context: RouteContext) {
   const cursor = new URL(request.url).searchParams.get("cursor") ?? undefined;
   if (cursor && cursor.length > 128) return apiError("VALIDATION_FAILED", 422);
 
+  if (cursor) {
+    const cursorEvent = await prisma.auditEvent.findFirst({
+      where: {
+        id: cursor,
+        ownerType: "ORGANIZATION",
+        ownerId: organizationId,
+      },
+      select: { id: true },
+    });
+    if (!cursorEvent) return apiError("VALIDATION_FAILED", 422);
+  }
+
   const events = await prisma.auditEvent.findMany({
     where: {
       ownerType: "ORGANIZATION",
@@ -41,7 +53,6 @@ export async function GET(request: Request, context: RouteContext) {
     },
     select: {
       id: true,
-      actorUserId: true,
       action: true,
       targetType: true,
       targetId: true,
