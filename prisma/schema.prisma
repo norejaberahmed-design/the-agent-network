@@ -69,6 +69,7 @@ enum ApprovalStatus {
 enum AgentRunStatus {
   QUEUED
   PLANNING
+  PLANNED
   WAITING_APPROVAL
   COMPLETED
   FAILED
@@ -329,15 +330,46 @@ model AgentRun {
   completedAt       DateTime?
   cancelledAt       DateTime?
   errorCode         String?        @db.VarChar(64)
+  planSummary       String?        @db.VarChar(1000)
+  planSources       Json?
+  plannedAt         DateTime?
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
   agent             Agent          @relation(fields: [agentId], references: [id], onDelete: Cascade)
   requester         User           @relation("AgentRunRequester", fields: [requesterUserId], references: [id], onDelete: Restrict)
+  steps             AgentRunStep[]
 
   @@unique([requesterUserId, idempotencyKey])
   @@index([status, availableAt])
   @@index([agentId, createdAt])
   @@index([ownerType, ownerId, createdAt])
+}
+
+model AgentRunStep {
+  id          String               @id @default(cuid())
+  runId       String
+  stepId      String               @db.VarChar(64)
+  ordinal     Int
+  action      String               @db.VarChar(64)
+  description String               @db.VarChar(500)
+  input       Json
+  status      AgentRunStepStatus   @default(PROPOSED)
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+  run         AgentRun             @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@unique([runId, stepId])
+  @@unique([runId, ordinal])
+  @@index([runId, status])
+}
+
+enum AgentRunStepStatus {
+  PROPOSED
+  APPROVED
+  REJECTED
+  EXECUTED
+  FAILED
+  CANCELLED
 }
 
 model AuditEvent {
