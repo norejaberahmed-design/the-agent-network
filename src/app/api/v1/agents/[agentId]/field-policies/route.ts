@@ -39,7 +39,7 @@ export async function GET(_request: Request, context: RouteContext) {
 }
 
 export async function POST(request: Request, context: RouteContext) {
-  if (!isTrustedMutationRequest(request)) return apiError("INVALID_ORIGIN", 403);
+  if (!(await isTrustedMutationRequest(request))) return apiError("INVALID_ORIGIN", 403);
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) return apiError("UNAUTHENTICATED", 401);
 
