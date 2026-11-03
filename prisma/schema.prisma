@@ -262,6 +262,7 @@ model ActionApproval {
   approverUserId  String?
   actionType      String
   recipient       String
+  requestedDataScope String[]
   payloadDigest   String         @db.VarChar(64)
   approvalDigest  String         @db.VarChar(64)
   payloadPreview  Json
