@@ -64,6 +64,7 @@ export function RunManager({
         return;
       }
       setTask("");
+      setRuns((current) => [body.data as Run, ...current].slice(0, 50));
       setNotice("تم حفظ المهمة في قائمة الانتظار. لم يبدأ التنفيذ بعد.");
       router.refresh();
     } catch {
