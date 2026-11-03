@@ -64,4 +64,24 @@ describe("safe audit metadata projection", () => {
       }),
     ).toEqual({});
   });
+  it("shows safe approval metadata without exposing preview payloads", () => {
+    expect(
+      projectSafeAuditMetadata("action_approval.approved", {
+        actionType: "SEND_MESSAGE",
+        recipient: "agent://target-1",
+        payloadDigest: "a".repeat(64),
+        requestedDataScope: ["PUBLIC_PROFILE"],
+        decision: "APPROVE",
+        payloadPreview: { apiKey: "secret" },
+        rawPayload: { message: "private" },
+      }),
+    ).toEqual({
+      actionType: "SEND_MESSAGE",
+      recipient: "agent://target-1",
+      payloadDigest: "a".repeat(64),
+      requestedDataScope: ["PUBLIC_PROFILE"],
+      decision: "APPROVE",
+    });
+  });
+
 });
