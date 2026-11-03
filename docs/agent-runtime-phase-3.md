@@ -42,6 +42,7 @@ No key or secret is stored in this repository. CI uses fake providers and does n
 
 ## Human review and non-execution
 
+- The dashboard requires explicit user consent before a task is queued for processing by the configured external AI provider; it warns users not to submit passwords, personal data, or secrets.
 - Successful provider output is schema-validated against the live server-derived allowlist and stored as PROPOSED steps with source metadata.
 - Owners can inspect the plan and reject it.
 - No step executor exists in this phase. No message is sent, no payment is made, no signature is created, no account is changed, and no private data is disclosed.
