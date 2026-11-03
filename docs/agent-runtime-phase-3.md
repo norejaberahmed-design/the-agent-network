@@ -6,7 +6,7 @@ Status: implemented as a server-side planning worker. It does not execute plan s
 
 - Internal endpoint: POST /api/internal/agent-worker
 - Authentication: Authorization: Bearer <AGENT_WORKER_SECRET>, compared in constant time.
-- One invocation claims and processes at most one run.
+- One invocation claims and processes at most one run, and also purges expired run records.
 - Schedule a trusted server-side cron invocation (for example, once per minute). Do not call this endpoint from browser code.
 - The endpoint is disabled unless AGENT_WORKER_SECRET, OPENAI_API_KEY, and OPENAI_AGENT_MODEL are configured.
 
@@ -21,6 +21,8 @@ Status: implemented as a server-side planning worker. It does not execute plan s
 No key or secret is stored in this repository. CI uses fake providers and does not call OpenAI.
 
 ## Worker guarantees
+
+- Run tasks, plans, and source metadata expire after 30 days. The trusted worker invocation deletes expired records, cascades plan steps, and releases any still-reserved grant uses before deletion. Keep the scheduler running even when provider configuration is disabled so retention continues.
 
 - Atomic claim uses PostgreSQL row locking with SKIP LOCKED.
 - Each claim has a 90-second lease. Expired leases can be reclaimed.
@@ -42,7 +44,7 @@ No key or secret is stored in this repository. CI uses fake providers and does n
 
 ## Human review and non-execution
 
-- The dashboard requires explicit user consent before a task is queued for processing by the configured external AI provider; it warns users not to submit passwords, personal data, or secrets.
+- The dashboard requires explicit user consent before a task is queued for processing by the configured external AI provider; the consent version and timestamp are persisted. It warns users not to submit passwords, personal data, or secrets.
 - Successful provider output is schema-validated against the live server-derived allowlist and stored as PROPOSED steps with source metadata.
 - Owners can inspect the plan and reject it.
 - No step executor exists in this phase. No message is sent, no payment is made, no signature is created, no account is changed, and no private data is disclosed.
