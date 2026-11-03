@@ -19,7 +19,9 @@ function canonicalize(value: unknown): string {
   }
   if (typeof value === "number") {
     if (!Number.isFinite(value)) throw new TypeError("Non-finite numbers are not valid approval payload values.");
-    return JSON.stringify(value);
+    const encoded = JSON.stringify(value);
+    if (encoded === undefined) throw new TypeError("Invalid JSON number.");
+    return encoded;
   }
   if (Array.isArray(value)) {
     return `[${value.map((item) => canonicalize(item)).join(",")}]`;
