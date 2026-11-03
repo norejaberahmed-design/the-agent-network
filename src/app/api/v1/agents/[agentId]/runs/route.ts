@@ -202,6 +202,7 @@ export async function POST(request: Request, context: RouteContext) {
           agentConfigurationVersion: access.agent.configurationVersion,
           providerConsentAt: now,
           providerConsentVersion: "ai-processing-v1",
+          expiresAt: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000),
           task: input.task,
           purpose: input.purpose,
           target: input.target,
