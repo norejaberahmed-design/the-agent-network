@@ -64,7 +64,6 @@ export async function PATCH(request: Request, context: RouteContext) {
       },
     });
     if (!agent) return { state: "NOT_FOUND" as const };
-    if (agent.status === "REVOKED") return { state: "TERMINAL" as const };
 
     let ownerId: string;
     if (agent.ownerType === "USER") {
@@ -88,6 +87,8 @@ export async function PATCH(request: Request, context: RouteContext) {
       }
       ownerId = agent.organizationOwnerId;
     }
+
+    if (agent.status === "REVOKED") return { state: "TERMINAL" as const };
 
     if (parsed.data.discoverable) {
       const policies: AgentDisclosurePolicy[] = agent.fieldPolicies
