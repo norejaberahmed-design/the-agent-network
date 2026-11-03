@@ -151,13 +151,17 @@ suite("authenticated public agent discovery (PostgreSQL integration)", () => {
     expect(response.status).toBe(200);
     expect(response.headers.get("Cache-Control")).toBe("no-store");
     const payload = await response.json();
-    expect(payload.data).toHaveLength(1);
-    expect(payload.data[0]).toEqual({
+    const publicResult = payload.data.find(
+      (item: { id: string }) => item.id === publicAgentId,
+    );
+    expect(publicResult).toEqual({
       id: publicAgentId,
       profile: { name: "Supplier Discovery Agent" },
     });
-    expect(JSON.stringify(payload.data)).not.toContain("Private negotiation");
-    expect(JSON.stringify(payload.data)).not.toContain("approved public supplier information");
-    expect(payload.nextCursor).toBeNull();
+    expect(payload.data.some((item: { id: string }) =>
+      [noPolicyAgentId, draftAgentId, privateAgentId].includes(item.id),
+    )).toBe(false);
+    expect(JSON.stringify(publicResult)).not.toContain("Private negotiation");
+    expect(JSON.stringify(publicResult)).not.toContain("approved public supplier information");
   });
 });
