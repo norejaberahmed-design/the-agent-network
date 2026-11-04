@@ -63,6 +63,8 @@ export async function PATCH(request: Request, context: RouteContext) {
         userOwnerId: true,
         organizationOwnerId: true,
         status: true,
+        primaryLanguage: true,
+        supportedLanguages: true,
         configurationVersion: true,
       },
     });
@@ -92,6 +94,12 @@ export async function PATCH(request: Request, context: RouteContext) {
     if (agent.status === "REVOKED") return { state: "TERMINAL" as const };
     if (agent.configurationVersion !== configurationVersion) {
       return { state: "CONFLICT" as const };
+    }
+
+    const effectivePrimaryLanguage = profile.primaryLanguage ?? agent.primaryLanguage;
+    const effectiveSupportedLanguages = profile.supportedLanguages ?? agent.supportedLanguages;
+    if (!effectiveSupportedLanguages.includes(effectivePrimaryLanguage)) {
+      return { state: "INVALID_LANGUAGE_CONFIGURATION" as const };
     }
 
     const inFlight = await tx.agentRun.count({
@@ -146,6 +154,7 @@ export async function PATCH(request: Request, context: RouteContext) {
   if (result.state === "NOT_FOUND") return apiError("NOT_FOUND", 404);
   if (result.state === "FORBIDDEN") return apiError("FORBIDDEN", 403);
   if (result.state === "TERMINAL") return apiError("CONFLICT", 409);
+  if (result.state === "INVALID_LANGUAGE_CONFIGURATION") return apiError("VALIDATION_FAILED", 422);
   if (result.state === "CONFLICT") return apiError("VERSION_CONFLICT", 409);
   if (result.state === "RUNS_IN_PROGRESS") return apiError("AGENT_RUNS_IN_PROGRESS", 409);
 
