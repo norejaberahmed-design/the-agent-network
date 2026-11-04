@@ -28,6 +28,7 @@ const organizationId = `lifecycle-org-${suffix}`;
 const personalAgentId = `lifecycle-personal-agent-${suffix}`;
 const organizationAgentId = `lifecycle-organization-agent-${suffix}`;
 const revokedAgentId = `lifecycle-revoked-agent-${suffix}`;
+const revocableAgentId = `lifecycle-revocable-agent-${suffix}`;
 
 const setSessionUser = (userId: string | null) => {
   vi.mocked(auth.api.getSession).mockResolvedValue(
@@ -97,6 +98,15 @@ suite("agent lifecycle and discovery activation (PostgreSQL integration)", () =>
           status: "REVOKED",
           discoverable: false,
         },
+        {
+          id: revocableAgentId,
+          ownerType: "USER",
+          userOwnerId: ownerId,
+          name: "Revocable Lifecycle Agent",
+          purpose: "Agent used to verify explicit owner revocation.",
+          status: "ACTIVE",
+          discoverable: false,
+        },
       ],
     });
   });
@@ -105,13 +115,13 @@ suite("agent lifecycle and discovery activation (PostgreSQL integration)", () =>
     await prisma.auditEvent.deleteMany({
       where: {
         OR: [
-          { agentId: { in: [personalAgentId, organizationAgentId, revokedAgentId] } },
+          { agentId: { in: [personalAgentId, organizationAgentId, revokedAgentId, revocableAgentId] } },
           { ownerId: organizationId },
         ],
       },
     });
     await prisma.agent.deleteMany({
-      where: { id: { in: [personalAgentId, organizationAgentId, revokedAgentId] } },
+      where: { id: { in: [personalAgentId, organizationAgentId, revokedAgentId, revocableAgentId] } },
     });
     await prisma.membership.deleteMany({ where: { organizationId } });
     await prisma.organization.deleteMany({ where: { id: organizationId } });
@@ -275,10 +285,28 @@ suite("agent lifecycle and discovery activation (PostgreSQL integration)", () =>
     expect(releasedGrant.reservedUses).toBe(0);
   });
 
+  it("allows an owner to revoke an agent permanently and prevents reactivation", async () => {
+    setSessionUser(ownerId);
+    const revoke = await updateLifecycle(
+      patchRequest({ status: "REVOKED", discoverable: false }),
+      context(revocableAgentId),
+    );
+    expect(revoke.status).toBe(200);
+    const revoked = await prisma.agent.findUniqueOrThrow({
+      where: { id: revocableAgentId },
+      select: { status: true, discoverable: true, configurationVersion: true },
+    });
+    expect(revoked).toMatchObject({ status: "REVOKED", discoverable: false, configurationVersion: 2 });
+    const reactivate = await updateLifecycle(
+      patchRequest({ status: "ACTIVE", discoverable: false }),
+      context(revocableAgentId),
+    );
+    expect(reactivate.status).toBe(409);
+  });
   it("rejects invalid lifecycle states and inconsistent discoverability", async () => {
     setSessionUser(ownerId);
-    const revoked = await updateLifecycle(
-      patchRequest({ status: "REVOKED", discoverable: false }),
+    const invalid = await updateLifecycle(
+      patchRequest({ status: "ARCHIVED", discoverable: false }),
       context(personalAgentId),
     );
     const draftPublic = await updateLifecycle(
@@ -289,7 +317,7 @@ suite("agent lifecycle and discovery activation (PostgreSQL integration)", () =>
       patchRequest({ status: "ACTIVE", discoverable: false }),
       context(revokedAgentId),
     );
-    expect(revoked.status).toBe(422);
+    expect(invalid.status).toBe(422);
     expect(draftPublic.status).toBe(422);
     expect(reactivateRevoked.status).toBe(409);
   });

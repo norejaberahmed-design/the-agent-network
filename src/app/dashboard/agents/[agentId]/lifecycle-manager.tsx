@@ -31,7 +31,7 @@ export function AgentLifecycleManager({
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
 
-  async function save() {
+  async function save(nextStatus: AgentStatus = status, nextDiscoverable = discoverable) {
     setBusy(true);
     setError("");
     setSaved(false);
@@ -41,7 +41,7 @@ export function AgentLifecycleManager({
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ status, discoverable }),
+          body: JSON.stringify({ status: nextStatus, discoverable: nextDiscoverable }),
         },
       );
       const body = await response.json();
@@ -111,7 +111,7 @@ export function AgentLifecycleManager({
       </label>
       {error ? <p className="error" role="alert">{error}</p> : null}
       {saved ? <p className="muted" role="status">تم حفظ حالة الوكيل.</p> : null}
-      <div>
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
         <button
           className="button"
           type="button"
@@ -119,6 +119,18 @@ export function AgentLifecycleManager({
           disabled={busy || initialStatus === "REVOKED" || (status === initialStatus && discoverable === initialDiscoverable)}
         >
           {busy ? "جارٍ الحفظ..." : "حفظ الحالة"}
+        </button>
+        <button
+          className="button button-danger"
+          type="button"
+          onClick={() => {
+            if (window.confirm("إلغاء هذا الوكيل نهائياً؟ سيُوقف ظهوره وتُلغى مهامه المعلّقة، ولا يمكن إعادة تفعيله.")) {
+              void save("REVOKED", false);
+            }
+          }}
+          disabled={busy || initialStatus === "REVOKED"}
+        >
+          إلغاء الوكيل نهائياً
         </button>
       </div>
     </section>
