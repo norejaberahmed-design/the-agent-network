@@ -170,6 +170,14 @@ suite("agent run queue API (PostgreSQL integration)", () => {
     if (previousRuntimeEnv.scheduler === undefined) delete process.env.AGENT_WORKER_SCHEDULER_ENABLED; else process.env.AGENT_WORKER_SCHEDULER_ENABLED = previousRuntimeEnv.scheduler;
   });
 
+  it("does not accept queued work until the trusted scheduler is enabled", async () => {
+    setSessionUser(ownerId);
+    process.env.AGENT_WORKER_SCHEDULER_ENABLED = "false";
+    const response = await createRun(request(payload({ idempotencyKey: `scheduler-disabled-${suffix}` })), context(agentId));
+    process.env.AGENT_WORKER_SCHEDULER_ENABLED = "true";
+    expect(response.status).toBe(503);
+  });
+
   it("requires authentication and denies users outside the owner boundary", async () => {
     setSessionUser(null);
     const unauthenticated = await createRun(request(payload()), context(agentId));
