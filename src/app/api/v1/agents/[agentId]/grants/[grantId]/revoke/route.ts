@@ -29,7 +29,7 @@ export async function POST(request: Request, context: RouteContext) {
         select: { role: true },
       });
       if (!membership || !["OWNER", "ADMIN"].includes(membership.role)) {
-        throw new Error("ACCESS_REVOKED");
+        return { state: "ACCESS_REVOKED" as const };
       }
     } else if (access.ownerId !== session.user.id) {
       throw new Error("ACCESS_REVOKED");
@@ -108,6 +108,7 @@ export async function POST(request: Request, context: RouteContext) {
     return { state: "REVOKED" as const };
   });
 
+  if (result.state === "ACCESS_REVOKED") return apiError("FORBIDDEN", 403);
   if (result.state === "NOT_FOUND") return apiError("NOT_FOUND", 404);
   if (result.state === "NOT_ACTIVE" || result.state === "CONFLICT") {
     return apiError("CONFLICT", 409);
