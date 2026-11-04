@@ -5,6 +5,7 @@ import {
   type AgentPlanProvider,
   type AgentPlanningRequest,
 } from "./planner";
+import { lockAgentRuntime, lockGrantRows } from "./locks";
 import {
   mayContainChildSexualAbuse,
   mayContainCredentialOrSecret,
@@ -45,7 +46,8 @@ async function validateLiveAuthorization(
   now: Date,
 ): Promise<AuthorizationSnapshot | null> {
   if (run.grantIds.length === 0 || run.authorizedActions.length === 0 ||
-    !run.providerConsentAt || run.providerConsentVersion !== "ai-processing-v1") return null;
+    !run.providerConsentAt || run.providerConsentVersion !== "ai-processing-v1" ||
+    run.expiresAt <= now) return null;
 
   const agent = await tx.agent.findUnique({
     where: { id: run.agentId },
@@ -131,77 +133,149 @@ async function claimNextRun(
   workerId: string,
   now: Date,
 ): Promise<AgentRun | null> {
-  return prisma.$transaction(async (tx) => {
-    const expired = await tx.agentRun.findMany({
-      where: { status: "PLANNING", leaseExpiresAt: { lte: now } },
-      take: 100,
-      orderBy: { leaseExpiresAt: "asc" },
+  // Candidate discovery is intentionally unlocked. The per-agent advisory lock,
+  // followed by deterministic grant row locks and a conditional update, is the
+  // linearization point shared with cancellation, lifecycle and grant revocation.
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    const candidate = await prisma.agentRun.findFirst({
+      where: {
+        OR: [
+          { status: "QUEUED", availableAt: { lte: now } },
+          { status: "PLANNING", leaseExpiresAt: { lte: now } },
+        ],
+      },
+      orderBy: [{ availableAt: "asc" }, { createdAt: "asc" }],
     });
+    if (!candidate) return null;
 
-    for (const run of expired.filter((item) => item.attemptCount >= item.maxAttempts)) {
+    const result = await prisma.$transaction(async (tx) => {
+      await lockAgentRuntime(tx, candidate.agentId);
+      let current = await tx.agentRun.findUnique({ where: { id: candidate.id } });
+      if (!current) return null;
+      if (
+        current.status !== "QUEUED" && current.status !== "PLANNING"
+      ) return null;
+      if (
+        (current.status === "QUEUED" && current.availableAt > now) ||
+        (current.status === "PLANNING" && (!current.leaseExpiresAt || current.leaseExpiresAt > now))
+      ) return null;
+
+      await lockGrantRows(tx, current.grantIds);
+      current = await tx.agentRun.findUnique({ where: { id: candidate.id } });
+      if (!current) return null;
+      if (
+        current.status !== "QUEUED" && current.status !== "PLANNING"
+      ) return null;
+      if (
+        (current.status === "QUEUED" && current.availableAt > now) ||
+        (current.status === "PLANNING" && (!current.leaseExpiresAt || current.leaseExpiresAt > now))
+      ) return null;
+
+      if (current.attemptCount >= current.maxAttempts) {
+        const dead = await tx.agentRun.updateMany({
+          where: {
+            id: current.id,
+            status: current.status,
+            attemptCount: current.attemptCount,
+          },
+          data: {
+            status: "DEAD_LETTER",
+            errorCode: "WORKER_LEASE_EXHAUSTED",
+            workerId: null,
+            claimedAt: null,
+            leaseExpiresAt: null,
+            completedAt: now,
+          },
+        });
+        if (dead.count === 1) {
+          await releaseReservations(tx, current);
+          await tx.auditEvent.create({
+            data: {
+              agentId: current.agentId,
+              ownerType: current.ownerType,
+              ownerId: current.ownerId,
+              action: "agent.run.dead_lettered",
+              targetType: "AgentRun",
+              targetId: current.id,
+              outcome: "FAILED",
+              policyVersion: String(current.agentConfigurationVersion),
+              correlationId: randomUUID(),
+              metadata: { reason: "WORKER_LEASE_EXHAUSTED", attemptCount: current.attemptCount },
+            },
+          });
+        }
+        return null;
+      }
+
+      const authorization = await validateLiveAuthorization(tx, current, now);
+      if (!authorization) {
+        const cancelled = await tx.agentRun.updateMany({
+          where: {
+            id: current.id,
+            status: current.status,
+            attemptCount: current.attemptCount,
+          },
+          data: {
+            status: "CANCELLED",
+            errorCode: "AUTHORIZATION_REVOKED",
+            cancelledAt: now,
+            completedAt: now,
+            workerId: null,
+            claimedAt: null,
+            leaseExpiresAt: null,
+          },
+        });
+        if (cancelled.count === 1) {
+          await releaseReservations(tx, current);
+          await tx.auditEvent.create({
+            data: {
+              agentId: current.agentId,
+              ownerType: current.ownerType,
+              ownerId: current.ownerId,
+              action: "agent.run.cancelled",
+              targetType: "AgentRun",
+              targetId: current.id,
+              outcome: "DENIED",
+              policyVersion: String(current.agentConfigurationVersion),
+              correlationId: randomUUID(),
+              metadata: { reason: "AUTHORIZATION_REVOKED_BEFORE_CLAIM" },
+            },
+          });
+        }
+        return null;
+      }
+
+      const leaseUntil = new Date(now.getTime() + 90_000);
       const changed = await tx.agentRun.updateMany({
         where: {
-          id: run.id,
+          id: current.id,
+          status: current.status,
+          attemptCount: current.attemptCount,
+          ...(current.status === "QUEUED"
+            ? { availableAt: { lte: now } }
+            : { leaseExpiresAt: { lte: now } }),
+        },
+        data: {
           status: "PLANNING",
-          leaseExpiresAt: { lte: now },
-          attemptCount: run.attemptCount,
-        },
-        data: {
-          status: "DEAD_LETTER",
-          errorCode: "WORKER_LEASE_EXHAUSTED",
-          workerId: null,
-          claimedAt: null,
-          leaseExpiresAt: null,
-          completedAt: now,
+          workerId,
+          claimedAt: now,
+          leaseExpiresAt: leaseUntil,
+          attemptCount: { increment: 1 },
+          startedAt: current.startedAt ?? now,
+          errorCode: null,
         },
       });
-      if (changed.count !== 1) continue;
-      await releaseReservations(tx, run);
-      await tx.auditEvent.create({
-        data: {
-          agentId: run.agentId,
-          ownerType: run.ownerType,
-          ownerId: run.ownerId,
-          action: "agent.run.dead_lettered",
-          targetType: "AgentRun",
-          targetId: run.id,
-          outcome: "FAILED",
-          policyVersion: String(run.agentConfigurationVersion),
-          correlationId: randomUUID(),
-          metadata: { reason: "WORKER_LEASE_EXHAUSTED", attemptCount: run.attemptCount },
-        },
-      });
-    }
+      if (changed.count !== 1) return null;
+      return tx.agentRun.findUnique({ where: { id: current.id } });
+    }, {
+      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+      maxWait: 5_000,
+      timeout: 10_000,
+    });
 
-    const leaseUntil = new Date(now.getTime() + 90_000);
-    const sql = [
-      'WITH candidate AS (',
-      '  SELECT "id" FROM "AgentRun"',
-      '  WHERE (("status" = \'QUEUED\' AND "availableAt" <= $1)',
-      '     OR ("status" = \'PLANNING\' AND "leaseExpiresAt" <= $2 AND "attemptCount" < "maxAttempts"))',
-      '  ORDER BY "availableAt" ASC, "createdAt" ASC',
-      '  FOR UPDATE SKIP LOCKED',
-      '  LIMIT 1',
-      ')',
-      'UPDATE "AgentRun" AS run',
-      'SET "status" = \'PLANNING\', "workerId" = $3, "claimedAt" = $4,',
-      '    "leaseExpiresAt" = $5, "attemptCount" = run."attemptCount" + 1,',
-      '    "startedAt" = COALESCE(run."startedAt", $6), "errorCode" = NULL, "updatedAt" = $7',
-      'FROM candidate WHERE run."id" = candidate."id"',
-      'RETURNING run.*',
-    ].join("\n");
-    const claimed = await tx.$queryRawUnsafe<AgentRun[]>(
-      sql,
-      now,
-      now,
-      workerId,
-      now,
-      leaseUntil,
-      now,
-      now,
-    );
-    return claimed[0] ?? null;
-  });
+    if (result) return result;
+  }
+  return null;
 }
 
 async function failRun(
