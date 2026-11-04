@@ -408,9 +408,15 @@ export async function runAgentWorkerOnce(args: {
   const claimed = await claimNextRun(prisma, workerId, now);
   if (!claimed) return { status: "IDLE" };
 
-  const authorization = await prisma.$transaction((tx) =>
-    validateLiveAuthorization(tx, claimed, new Date())
-  );
+  const authorization = await prisma.$transaction(async (tx) => {
+    await lockAgentRuntime(tx, claimed.agentId);
+    await lockGrantRows(tx, claimed.grantIds);
+    const current = await tx.agentRun.findFirst({
+      where: { id: claimed.id, status: "PLANNING", workerId },
+    });
+    if (!current) return null;
+    return validateLiveAuthorization(tx, current, new Date());
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   if (!authorization) {
     return cancelRunForAuthorizationFailure(prisma, claimed, workerId, new Date());
   }
@@ -487,6 +493,8 @@ export async function runAgentWorkerOnce(args: {
   let saved: boolean;
   try {
     saved = await prisma.$transaction(async (tx) => {
+    await lockAgentRuntime(tx, claimed.agentId);
+    await lockGrantRows(tx, claimed.grantIds);
     const current = await tx.agentRun.findFirst({
       where: { id: claimed.id, status: "PLANNING", workerId },
     });
