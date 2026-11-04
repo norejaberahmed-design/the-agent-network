@@ -1,0 +1,2 @@
+ALTER TABLE "Agent"
+  ADD COLUMN "runtimeLockVersion" INTEGER NOT NULL DEFAULT 0;
