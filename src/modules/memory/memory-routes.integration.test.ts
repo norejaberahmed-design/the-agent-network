@@ -140,4 +140,34 @@ suite("personal memory API (PostgreSQL integration)", () => {
     expect(deletion.status).toBe(404);
     expect((await prisma.personalMemory.findUnique({ where: { id: memory.id } }))?.content).toBe("Owner-only fact");
   });
+  it("expires old inferred memory, clears its payload, and records an audit event", async () => {
+    const expired = await prisma.personalMemory.create({
+      data: {
+        userId: ownerId,
+        kind: "INFERRED",
+        content: "An expired inferred preference.",
+        sourceType: "OBSERVED_PATTERN",
+        sourceReference: "memory-test-source",
+        confidence: 0.9,
+        purpose: "Temporary personalization",
+        classification: "CONTEXTUAL",
+        expiresAt: new Date(Date.now() - 60_000),
+      },
+    });
+    const result = await purgeExpiredPersonalMemories(prisma, new Date());
+    expect(result.deleted).toBeGreaterThanOrEqual(1);
+    const saved = await prisma.personalMemory.findUniqueOrThrow({ where: { id: expired.id } });
+    expect(saved).toMatchObject({
+      status: "DELETED",
+      content: "[expired]",
+      purpose: "[expired]",
+      sourceReference: null,
+      confidence: null,
+      taskContextRunId: null,
+    });
+    expect(await prisma.auditEvent.findFirst({
+      where: { targetType: "PersonalMemory", targetId: expired.id, action: "personal_memory.expired" },
+    })).not.toBeNull();
+  });
+
 });
