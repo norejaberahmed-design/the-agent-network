@@ -23,6 +23,9 @@ const ownerId = `run-owner-${suffix}`;
 const outsiderId = `run-outsider-${suffix}`;
 const agentId = `run-agent-${suffix}`;
 const grantId = `run-grant-${suffix}`;
+const rateOwnerId = `run-rate-owner-${suffix}`;
+const rateAgentId = `run-rate-agent-${suffix}`;
+const rateGrantId = `run-rate-grant-${suffix}`;
 let queuedRunId = "";
 
 const setSessionUser = (userId: string | null) => {
@@ -51,6 +54,7 @@ suite("agent run queue API (PostgreSQL integration)", () => {
       data: [
         { id: ownerId, name: "Run Owner", email: `run-owner-${suffix}@example.invalid` },
         { id: outsiderId, name: "Run Outsider", email: `run-outsider-${suffix}@example.invalid` },
+        { id: rateOwnerId, name: "Rate Owner", email: `run-rate-owner-${suffix}@example.invalid` },
       ],
     });
     await prisma.agent.create({
@@ -72,6 +76,36 @@ suite("agent run queue API (PostgreSQL integration)", () => {
         languages: ["ar", "en"],
       },
     });
+    await prisma.agent.create({
+      data: {
+        id: rateAgentId,
+        ownerType: "USER",
+        userOwnerId: rateOwnerId,
+        name: "Rate Limit Test Agent",
+        purpose: "Research public supplier information.",
+        status: "ACTIVE",
+      },
+    });
+    await prisma.agentCapability.create({
+      data: {
+        agentId: rateAgentId,
+        key: "SEARCH_PUBLIC_WEB",
+        description: "Search public web sources under an owner grant.",
+        languages: ["ar", "en"],
+      },
+    });
+    await prisma.permissionGrant.create({
+      data: {
+        id: rateGrantId,
+        agentId: rateAgentId,
+        purpose: "Research public suppliers for the owner.",
+        actionScope: ["SEARCH_PUBLIC_WEB"],
+        targetScope: ["PUBLIC_WEB"],
+        dataScope: ["PUBLIC_PROFILE"],
+        expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+        maxUses: 100,
+      },
+    });
     await prisma.permissionGrant.create({
       data: {
         id: grantId,
@@ -87,12 +121,16 @@ suite("agent run queue API (PostgreSQL integration)", () => {
   });
 
   afterAll(async () => {
-    await prisma.auditEvent.deleteMany({ where: { agentId } });
+    await prisma.auditEvent.deleteMany({ where: { agentId: { in: [agentId, rateAgentId] } } });
+    await prisma.agentRun.deleteMany({ where: { agentId: { in: [agentId, rateAgentId] } } });
+    await prisma.permissionGrant.deleteMany({ where: { id: rateGrantId } });
+    await prisma.agentCapability.deleteMany({ where: { agentId: rateAgentId } });
+    await prisma.agent.deleteMany({ where: { id: rateAgentId } });
     await prisma.agentRun.deleteMany({ where: { agentId } });
     await prisma.permissionGrant.deleteMany({ where: { id: grantId } });
     await prisma.agentCapability.deleteMany({ where: { agentId } });
     await prisma.agent.deleteMany({ where: { id: agentId } });
-    await prisma.user.deleteMany({ where: { id: { in: [ownerId, outsiderId] } } });
+    await prisma.user.deleteMany({ where: { id: { in: [ownerId, outsiderId, rateOwnerId] } } });
     vi.mocked(auth.api.getSession).mockReset();
   });
 
@@ -184,6 +222,17 @@ suite("agent run queue API (PostgreSQL integration)", () => {
     expect(savedRun).toMatchObject({ status: "CANCELLED", errorCode: "GRANT_REVOKED" });
     const grant = await prisma.permissionGrant.findUniqueOrThrow({ where: { id: grantId } });
     expect(grant).toMatchObject({ status: "REVOKED", reservedUses: 0 });
+  });
+
+  it("serializes concurrent queue requests and enforces the per-user hourly limit", async () => {
+    setSessionUser(rateOwnerId);
+    const responses = await Promise.all(Array.from({ length: 12 }, (_, index) =>
+      createRun(request(payload({ idempotencyKey: `rate-limit-${index}-${suffix}` })), context(rateAgentId))
+    ));
+    expect(responses.filter((response) => response.status === 202)).toHaveLength(10);
+    expect(responses.filter((response) => response.status === 429)).toHaveLength(2);
+    const saved = await prisma.agentRun.count({ where: { agentId: rateAgentId, requesterUserId: rateOwnerId } });
+    expect(saved).toBe(10);
   });
 
   it("does not replay the same idempotency key across different agents", async () => {
