@@ -65,7 +65,7 @@ export default function AgentWorkspace() {
     <main className="agent-shell">
       <header className="agent-topbar">
         <Link className="agent-brand" href="/"><span className="agent-mark">A</span><span>The Agent Network<small>وكيلك الشخصي · مساحة العمل</small></span></Link>
-        <span className="agent-status"><i /> نموذج تجريبي مباشر</span>
+        <div className="agent-topbar-actions"><Link className="agent-member-link" href="/sign-in">دخول الأعضاء</Link><span className="agent-status"><i /> نموذج تجريبي مباشر</span></div>
       </header>
 
       <section className="agent-layout">
