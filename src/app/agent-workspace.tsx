@@ -251,7 +251,7 @@ export default function AgentWorkspace() {
               <button className={mode === "search" ? "selected" : ""} onClick={() => { setMode("search"); setResponse(null); }}>⌕ البحث والاكتشاف</button>
               <button className={mode === "ad" ? "selected" : ""} onClick={() => { setMode("ad"); setResponse(null); }}>✧ إعداد إعلان</button>
             </div>
-            <textarea value={task} onChange={e => setTask(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void runTask(); } }} placeholder={mode === "search" ? "مثال: ابحث عن موزعي معدات الشبكات في السعودية، واجمع المواقع الرسمية..." : "اكتب تفاصيل المنتج أو الخدمة والجمهور الذي تريد الوصول إليه..."} rows={4} maxLength={1200} />
+            <textarea value={task} onChange={e => setTask(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void runTask(); } }} placeholder={mode === "search" ? "مثال: ابحث عن موزعي معدات الشبكات في السعودية، واجمع المواقع الرسمية..." : "اكتب تفاصيل المنتج أو الخدمة والجمهور الذي تريد الوصول إليه..."} rows={4} maxLength={mode === "search" ? 4000 : 1200} />
             {mode === "search" && (
               <div className="agent-runtime-consent">
                 {accountState === "guest" ? <p>البحث عبر الوكيل الشخصي يتطلب تسجيل الدخول.</p> : null}
