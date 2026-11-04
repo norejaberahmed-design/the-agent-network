@@ -122,6 +122,21 @@ suite("agent profile management (PostgreSQL integration)", () => {
       context(personalAgentId),
     );
     expect(stale.status).toBe(409);
+
+    const invalidLanguage = await updateProfile(
+      patchRequest({ configurationVersion: 2, supportedLanguages: ["ar"], primaryLanguage: "en" }),
+      context(personalAgentId),
+    );
+    expect(invalidLanguage.status).toBe(422);
+    const unchanged = await prisma.agent.findUniqueOrThrow({
+      where: { id: personalAgentId },
+      select: { primaryLanguage: true, supportedLanguages: true, configurationVersion: true },
+    });
+    expect(unchanged).toMatchObject({
+      primaryLanguage: "ar",
+      supportedLanguages: ["ar", "en"],
+      configurationVersion: 2,
+    });
   });
 
   it("allows organization agent managers but rejects revoked agents", async () => {
