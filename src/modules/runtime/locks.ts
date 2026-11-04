@@ -30,3 +30,14 @@ export async function lockGrantRows(
     FOR UPDATE
   `);
 }
+
+/** Serializes the per-user hourly queue quota check. */
+export async function lockUserRuntime(tx: Transaction, userId: string): Promise<void> {
+  const rows = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+    UPDATE "User"
+    SET "runtimeLockVersion" = "runtimeLockVersion" + 1
+    WHERE "id" = ${userId}
+    RETURNING "id"
+  `);
+  if (rows.length !== 1) throw new Error("USER_RUNTIME_LOCK_NOT_FOUND");
+}
