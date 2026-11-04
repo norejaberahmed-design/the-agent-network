@@ -38,11 +38,11 @@ export async function POST(request: Request, context: RouteContext) {
         select: { id: true, status: true, grantIds: true },
       });
       if (!run) return null;
-      if (run.status !== "QUEUED") throw new Error("RUN_NOT_CANCELLABLE");
+      if (run.status !== "QUEUED" && run.status !== "CLAIMED") throw new Error("RUN_NOT_CANCELLABLE");
 
       const changed = await tx.agentRun.updateMany({
-        where: { id: runId, agentId, status: "QUEUED" },
-        data: { status: "CANCELLED", cancelledAt: new Date() },
+        where: { id: runId, agentId, status: { in: ["QUEUED", "CLAIMED"] } },
+        data: { status: "CANCELLED", cancelledAt: new Date(), claimedAt: null, leaseExpiresAt: null, workerId: null },
       });
       if (changed.count !== 1) throw new Error("RUN_NOT_CANCELLABLE");
 
