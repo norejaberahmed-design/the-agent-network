@@ -29,11 +29,13 @@ type Run = {
 export function RunManager({
   agentId,
   active,
+  runtimeConfigured,
   initialRuns,
   grantOptions,
 }: {
   agentId: string;
   active: boolean;
+  runtimeConfigured: boolean;
   initialRuns: Run[];
   grantOptions: GrantOption[];
 }) {
@@ -143,7 +145,12 @@ export function RunManager({
         <button className="button secondary" type="button" onClick={() => router.refresh()}>تحديث القائمة</button>
       </div>
       <p className="muted">يُحفظ نص المهمة في قاعدة البيانات ويُرسل إلى مزود الذكاء الاصطناعي عند تشغيل العامل. تُحذف المهام والخطط بعد 30 يوماً، وتخضع معالجة المزود لسياسة بياناته. لا تُدخل كلمات مرور أو بيانات شخصية أو أسراراً. لا ينفّذ النظام أي إجراء خارجي من هذه الشاشة.</p>
-      {!active ? <p className="muted">فعّل الوكيل أولاً لإضافة مهام.</p> : grantOptions.length === 0 ? (
+      {!runtimeConfigured ? (
+        <div className="panel" role="status">
+          <strong>محرك الذكاء الاصطناعي غير مهيأ في هذه البيئة</strong>
+          <p>لن تُرسل المهام إلى OpenAI حالياً. يلزم إعداد مفتاح API واسم النموذج وسر العامل الخلفي على الخادم، ثم تفعيل العامل المجدول. لم نُنشئ مفتاحاً ولم نُجرِ أي اتصال مدفوع.</p>
+        </div>
+      ) : !active ? <p className="muted">فعّل الوكيل أولاً لإضافة مهام.</p> : grantOptions.length === 0 ? (
         <p className="muted">لا يوجد تفويض نشط يطابق غرضاً ونطاقاً مسموحاً. أنشئ تفويضاً محدوداً أولاً.</p>
       ) : (
         <form onSubmit={queueRun} style={{ display: "grid", gap: 12 }}>
