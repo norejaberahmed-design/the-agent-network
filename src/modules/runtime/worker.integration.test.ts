@@ -191,4 +191,78 @@ suite("agent worker lease protocol (PostgreSQL integration)", () => {
       await prisma.agent.deleteMany({ where: { id: pausedAgentId } });
     }
   });
+  it("cancels a queued organization run when its requester loses membership", async () => {
+    const organizationId = `worker-org-${suffix}`;
+    const organizationAgentId = `worker-org-agent-${suffix}`;
+    const organizationGrantId = `worker-org-grant-${suffix}`;
+    const organizationRunId = `worker-org-run-${suffix}`;
+    try {
+      await prisma.organization.create({
+        data: { id: organizationId, name: "Worker Test Organization", slug: `worker-org-${suffix}` },
+      });
+      await prisma.membership.create({
+        data: { organizationId, userId: ownerId, role: "VIEWER" },
+      });
+      await prisma.agent.create({
+        data: {
+          id: organizationAgentId,
+          ownerType: "ORGANIZATION",
+          organizationOwnerId: organizationId,
+          name: "Organization Agent",
+          purpose: "Research public supplier information.",
+          status: "ACTIVE",
+        },
+      });
+      await prisma.agentCapability.create({
+        data: { agentId: organizationAgentId, key: "SEARCH_PUBLIC_WEB", description: "Search.", languages: ["en"] },
+      });
+      await prisma.permissionGrant.create({
+        data: {
+          id: organizationGrantId,
+          agentId: organizationAgentId,
+          purpose: "Research public suppliers for the owner.",
+          actionScope: ["SEARCH_PUBLIC_WEB"],
+          targetScope: ["PUBLIC_WEB"],
+          dataScope: ["PUBLIC_PROFILE"],
+          expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+          maxUses: 1,
+          reservedUses: 1,
+        },
+      });
+      await prisma.agentRun.create({
+        data: {
+          id: organizationRunId,
+          agentId: organizationAgentId,
+          requesterUserId: ownerId,
+          ownerType: "ORGANIZATION",
+          ownerId: organizationId,
+          task: "Research public supplier information.",
+          purpose: "Research public suppliers for the owner.",
+          target: "PUBLIC_WEB",
+          authorizedActions: ["SEARCH_PUBLIC_WEB"],
+          grantIds: [organizationGrantId],
+          requestDigest: "c".repeat(64),
+          idempotencyKey: `worker-org-key-${suffix}`,
+          status: "QUEUED",
+        },
+      });
+      await prisma.membership.delete({
+        where: { organizationId_userId: { organizationId, userId: ownerId } },
+      });
+      expect(await claimNextAgentRun("worker-org-worker")).toBeNull();
+      const saved = await prisma.agentRun.findUniqueOrThrow({ where: { id: organizationRunId } });
+      expect(saved).toMatchObject({ status: "CANCELLED", errorCode: "REQUESTER_ACCESS_REVOKED" });
+      const grant = await prisma.permissionGrant.findUniqueOrThrow({ where: { id: organizationGrantId } });
+      expect(grant.reservedUses).toBe(0);
+    } finally {
+      await prisma.auditEvent.deleteMany({ where: { agentId: organizationAgentId } });
+      await prisma.agentRun.deleteMany({ where: { id: organizationRunId } });
+      await prisma.permissionGrant.deleteMany({ where: { id: organizationGrantId } });
+      await prisma.agentCapability.deleteMany({ where: { agentId: organizationAgentId } });
+      await prisma.agent.deleteMany({ where: { id: organizationAgentId } });
+      await prisma.membership.deleteMany({ where: { organizationId, userId: ownerId } });
+      await prisma.organization.deleteMany({ where: { id: organizationId } });
+    }
+  });
+
 });
