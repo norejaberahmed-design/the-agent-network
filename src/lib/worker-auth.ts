@@ -1,4 +1,4 @@
-import { timingSafeEqual } from "node:crypto";
+import { createHash, timingSafeEqual } from "node:crypto";
 
 export function isAuthorizedAgentWorker(request: Request): boolean {
   const expected = process.env.AGENT_WORKER_TOKEN;
@@ -52,4 +52,11 @@ export async function readBoundedWorkerJson(
   } catch {
     return { ok: false };
   }
+}
+
+/** Derives a stable service identity from the authenticated token, never from client input. */
+export function getAuthorizedAgentWorkerId(request: Request): string | null {
+  if (!isAuthorizedAgentWorker(request)) return null;
+  const token = (request.headers.get("authorization") ?? "").slice(7);
+  return `worker-${createHash("sha256").update(token).digest("hex").slice(0, 24)}`;
 }
