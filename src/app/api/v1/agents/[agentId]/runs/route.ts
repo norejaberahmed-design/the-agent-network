@@ -175,7 +175,6 @@ export async function POST(request: Request, context: RouteContext) {
           where: {
             id: grantId,
             agentId,
-            id: input.grantId,
             purpose: input.purpose,
             targetScope: { has: input.target },
             dataScope: { has: "PUBLIC_PROFILE" },
