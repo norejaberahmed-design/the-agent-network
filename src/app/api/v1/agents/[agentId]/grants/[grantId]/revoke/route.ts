@@ -35,7 +35,7 @@ export async function POST(request: Request, context: RouteContext) {
         return { state: "ACCESS_REVOKED" as const };
       }
     } else if (access.ownerId !== session.user.id) {
-      throw new Error("ACCESS_REVOKED");
+      return { state: "ACCESS_REVOKED" as const };
     }
     const grant = await tx.permissionGrant.findFirst({
       where: { id: grantId, agentId },
@@ -116,7 +116,7 @@ export async function POST(request: Request, context: RouteContext) {
         targetType: "PermissionGrant",
         targetId: grantId,
         outcome: "COMPLETED",
-        policyVersion: String(grant.version + 1),
+        policyVersion: String(currentGrant.version + 1),
         correlationId,
       },
     });
