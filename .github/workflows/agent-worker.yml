@@ -25,6 +25,11 @@ jobs:
             exit 0
           fi
 
+          if [[ "$APP_URL" != https://* ]]; then
+            echo "APP_URL must use HTTPS so the worker secret is never sent over plaintext HTTP."
+            exit 1
+          fi
+
           response_file="$(mktemp)"
           trap 'rm -f "$response_file"' EXIT
           set +e
