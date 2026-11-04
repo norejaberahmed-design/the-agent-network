@@ -6,9 +6,9 @@ Status: implemented and gated; no worker service has been deployed.
 
 All endpoints require `Authorization: Bearer <AGENT_WORKER_TOKEN>`. The token must be at least 32 characters and is read only from the runtime environment. Missing or invalid configuration fails closed.
 
-- `POST /api/internal/agent-runs/claim` — body: `{"workerId":"worker-001"}`; atomically leases one eligible run.
-- `POST /api/internal/agent-runs/heartbeat` — body: `{"runId":"...","workerId":"worker-001"}`; extends an unexpired lease owned by that worker.
-- `POST /api/internal/agent-runs/fail` — body: `{"runId":"...","workerId":"worker-001","errorCode":"WORKER_FAILURE","retryable":true}`; retries with bounded exponential backoff or terminates the run.
+- `POST /api/internal/agent-runs/claim` — no body; atomically leases one eligible run. The worker identity is derived server-side from the bearer credential, never from request data.
+- `POST /api/internal/agent-runs/heartbeat` — body: `{"runId":"..."}`; extends an unexpired lease owned by the authenticated worker identity.
+- `POST /api/internal/agent-runs/fail` — body: `{"runId":"...","errorCode":"WORKER_FAILURE","retryable":true}`; retries with bounded exponential backoff or terminates the run.
 
 Request bodies are bounded to 4 KiB. Worker identifiers and failure codes are validated. Responses are non-cacheable.
 
