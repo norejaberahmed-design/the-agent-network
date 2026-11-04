@@ -23,7 +23,10 @@ export async function POST(request: Request) {
   if (!validWorkerSecret(request)) return apiError("UNAUTHENTICATED", 401);
 
   try {
-    const [runRetention, memoryRetention] = await Promise.all([\n      purgeExpiredAgentRuns(prisma),\n      purgeExpiredPersonalMemories(prisma),\n    ]);
+    const [runRetention, memoryRetention] = await Promise.all([
+      purgeExpiredAgentRuns(prisma),
+      purgeExpiredPersonalMemories(prisma),
+    ]);
     const apiKey = process.env.OPENAI_API_KEY;
     const model = process.env.OPENAI_AGENT_MODEL;
     if (!apiKey || !model || process.env.AGENT_WORKER_SCHEDULER_ENABLED !== "true") {
