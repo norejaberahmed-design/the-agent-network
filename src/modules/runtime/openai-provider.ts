@@ -45,9 +45,16 @@ function webSearchSources(response: JsonRecord): Array<{ url: string; title: str
       if (!isRecord(source) || typeof source.url !== "string") continue;
       try {
         const url = new URL(source.url);
-        if (url.protocol !== "https:" && url.protocol !== "http:") continue;
-        sources.set(url.toString(), {
-          url: url.toString(),
+        if ((url.protocol !== "https:" && url.protocol !== "http:") || url.username || url.password) continue;
+        url.hash = "";
+        for (const key of [...url.searchParams.keys()]) {
+          if (/^(?:token|secret|password|passwd|auth|authorization|session|sessionid|api[_-]?key|access[_-]?token|refresh[_-]?token|client_secret|code)$/iu.test(key)) {
+            url.searchParams.delete(key);
+          }
+        }
+        const safeUrl = url.toString();
+        sources.set(safeUrl, {
+          url: safeUrl,
           title: typeof source.title === "string" && source.title.trim()
             ? source.title.trim().slice(0, 300)
             : url.hostname,
