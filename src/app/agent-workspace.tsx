@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import MemoryManager from "./memory-manager";
 import { useEffect, useState } from "react";
+import MemoryManager from "./memory-manager";
 
 type Mode = "search" | "ad";
 type SearchResult = { title: string; url: string; snippet: string };
@@ -75,6 +75,8 @@ export default function AgentWorkspace() {
           setTone(body.data.tone);
           setGoal(body.data.goal);
           setMemoryContextEnabled(Boolean(body.data.memoryContextEnabled));
+        } else {
+          setMemoryContextEnabled(false);
         }
         setProfileStorage("account");
       })
