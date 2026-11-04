@@ -107,8 +107,12 @@ export async function purgeExpiredPersonalMemories(
         data: {
           status: "DELETED",
           content: "[expired]",
+          purpose: "[expired]",
           sourceReference: null,
           confidence: null,
+          taskContextRunId: null,
+          confirmedAt: null,
+          lastObservedAt: null,
           version: { increment: 1 },
         },
       });
