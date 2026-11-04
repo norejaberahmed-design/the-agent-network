@@ -35,6 +35,28 @@ describe("agent planning boundary", () => {
     expect(result.status).toBe("PLANNED");
   });
 
+  it("rejects evidence claims that cite URLs not returned by web search", async () => {
+    const result = await createAgentPlan(providerReturning({
+      summary: "Research a supplier.",
+      steps: [{ id: "step-1", action: "SEARCH_PUBLIC_WEB", description: "Search public sources.", input: {} }],
+      sources: [{ url: "https://example.com/source", title: "Returned source" }],
+      evidence: [{ claim: "The supplier is registered.", sourceUrl: "https://forged.example/registration" }],
+    }), request);
+
+    expect(result).toEqual({ status: "INVALID_PLAN", reason: "UNVERIFIED_SOURCE" });
+  });
+
+  it("accepts evidence only when its URL exactly matches a returned web source", async () => {
+    const result = await createAgentPlan(providerReturning({
+      summary: "Research a supplier.",
+      steps: [{ id: "step-1", action: "SEARCH_PUBLIC_WEB", description: "Search public sources.", input: {} }],
+      sources: [{ url: "https://example.com/source", title: "Returned source" }],
+      evidence: [{ claim: "The source page identifies the supplier.", sourceUrl: "https://example.com/source" }],
+    }), request);
+
+    expect(result.status).toBe("PLANNED");
+  });
+
   it("rejects an action that is not in the server-derived allowlist", async () => {
     const result = await createAgentPlan(providerReturning({
       summary: "Send the message.",

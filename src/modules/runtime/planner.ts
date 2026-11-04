@@ -29,11 +29,30 @@ const agentPlanSourceSchema = z.object({
   title: z.string().trim().min(1).max(300),
 }).strict();
 
+const agentPlanEvidenceSchema = z.object({
+  claim: z.string().trim().min(1).max(500),
+  sourceUrl: z.string().url().max(2048).refine((value) => {
+    const protocol = new URL(value).protocol;
+    return protocol === "https:" || protocol === "http:";
+  }),
+}).strict();
+
 export const agentPlanSchema = z.object({
   summary: z.string().trim().min(1).max(1000),
   steps: z.array(agentPlanStepSchema).min(1).max(8),
   sources: z.array(agentPlanSourceSchema).max(10).default([]),
+  evidence: z.array(agentPlanEvidenceSchema).max(20).default([]),
 }).strict().superRefine((plan, ctx) => {
+  const sourceUrls = new Set(plan.sources.map((source) => source.url));
+  plan.evidence.forEach((evidence, index) => {
+    if (!sourceUrls.has(evidence.sourceUrl)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["evidence", index, "sourceUrl"],
+        message: "Evidence must reference a source returned by the web search provider",
+      });
+    }
+  });
   const ids = new Set<string>();
   plan.steps.forEach((step, index) => {
     if (ids.has(step.id)) {
@@ -116,7 +135,7 @@ export type AgentPlanProvider = {
 
 export type AgentPlanResult =
   | { status: "PLANNED"; plan: AgentPlan }
-  | { status: "INVALID_PLAN"; reason: "SCHEMA_INVALID" | "UNAUTHORIZED_ACTION" }
+  | { status: "INVALID_PLAN"; reason: "SCHEMA_INVALID" | "UNAUTHORIZED_ACTION" | "UNVERIFIED_SOURCE" }
   | { status: "PROVIDER_ERROR"; code: AgentPlanProviderError["code"]; retryable: boolean }
   | { status: "PROVIDER_ERROR"; code: "PROVIDER_UNKNOWN"; retryable: true };
 
@@ -148,7 +167,10 @@ export async function createAgentPlan(
 
   const parsed = agentPlanSchema.safeParse(generated);
   if (!parsed.success) {
-    return { status: "INVALID_PLAN", reason: "SCHEMA_INVALID" };
+    const hasUnverifiedSource = parsed.error.issues.some((issue) =>
+      issue.path[0] === "evidence" && issue.path[1] !== undefined
+    );
+    return { status: "INVALID_PLAN", reason: hasUnverifiedSource ? "UNVERIFIED_SOURCE" : "SCHEMA_INVALID" };
   }
 
   const allowed = new Set(trustedRequest.trustedContext.allowedActions);

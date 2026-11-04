@@ -42,6 +42,7 @@ const modelPlan = {
     },
   }],
   sources: [],
+  evidence: [],
 };
 
 describe("OpenAI Responses provider", () => {
@@ -77,6 +78,7 @@ describe("OpenAI Responses provider", () => {
     expect(payload.safety_identifier).toBe(request.safetyIdentifier);
     expect(payload.text.format.type).toBe("json_schema");
     expect(payload.text.format.strict).toBe(true);
+    expect(payload.text.format.schema.required).toContain("evidence");
     expect(payload.tools).toEqual([{ type: "web_search" }]);
     expect(payload.include).toContain("web_search_call.action.sources");
     expect(result.steps[0].input).toEqual({ query: "supplier official website" });

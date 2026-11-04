@@ -488,7 +488,11 @@ export async function runAgentWorkerOnce(args: {
       prisma,
       claimed,
       workerId,
-      planned.reason === "UNAUTHORIZED_ACTION" ? "UNAUTHORIZED_PLAN_ACTION" : "INVALID_PLAN",
+      planned.reason === "UNAUTHORIZED_ACTION"
+        ? "UNAUTHORIZED_PLAN_ACTION"
+        : planned.reason === "UNVERIFIED_SOURCE"
+          ? "UNVERIFIED_SOURCE_CITATION"
+          : "INVALID_PLAN",
       false,
       new Date(),
     );
@@ -499,6 +503,7 @@ export async function runAgentWorkerOnce(args: {
     ...planned.plan.steps.map((step) => step.description),
     ...planned.plan.steps.flatMap((step) => Object.values(step.input).map(String)),
     ...planned.plan.sources.map((source) => source.title),
+    ...planned.plan.evidence.map((item) => item.claim),
   ].join("\n");
   if (moderationText.length > 16_000) {
     return failRun(prisma, claimed, workerId, "OUTPUT_TOO_LARGE", false, new Date());
@@ -520,6 +525,12 @@ export async function runAgentWorkerOnce(args: {
     return failRun(prisma, claimed, workerId, "OUTPUT_MODERATION_BLOCKED", false, new Date());
   }
 
+  const persistedSources = planned.plan.sources.map((source) => {
+    const evidence = planned.plan.evidence
+      .filter((item) => item.sourceUrl === source.url)
+      .map((item) => ({ claim: item.claim }));
+    return evidence.length > 0 ? { ...source, evidence } : source;
+  });
   const persistedAt = new Date();
   let saved: boolean;
   try {
@@ -584,7 +595,7 @@ export async function runAgentWorkerOnce(args: {
       data: {
         status: "PLANNED",
         planSummary: planned.plan.summary,
-        planSources: planned.plan.sources as Prisma.InputJsonArray,
+        planSources: persistedSources as Prisma.InputJsonArray,
         plannedAt: persistedAt,
         completedAt: persistedAt,
         workerId: null,
