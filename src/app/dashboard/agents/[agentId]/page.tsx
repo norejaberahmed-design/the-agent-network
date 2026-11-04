@@ -9,6 +9,7 @@ import { FieldPolicyManager } from "./field-policy-manager";
 import { AgentLifecycleManager } from "./lifecycle-manager";
 import { ActionApprovalManager } from "./action-approval-manager";
 import { RunManager } from "./run-manager";
+import { AgentProfileEditor } from "./profile-editor";
 
 export const dynamic = "force-dynamic";
 
@@ -116,6 +117,18 @@ export default async function AgentDetailPage({
           <span className="muted">الإصدار {access.agent.configurationVersion}</span>
         </div>
       </section>
+      <AgentProfileEditor
+        agentId={agentId}
+        initialProfile={{
+          name: access.agent.name,
+          purpose: access.agent.purpose,
+          publicDescription: access.agent.publicDescription,
+          primaryLanguage: access.agent.primaryLanguage,
+          supportedLanguages: access.agent.supportedLanguages,
+          configurationVersion: access.agent.configurationVersion,
+        }}
+        canManage={access.canManageFieldPolicies}
+      />
       <AgentLifecycleManager
         agentId={agentId}
         initialStatus={access.agent.status}
