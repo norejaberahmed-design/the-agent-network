@@ -4,11 +4,8 @@ type Transaction = Prisma.TransactionClient;
 
 /** Serializes a single agent's queue, grant, lifecycle and worker transitions. */
 export async function lockAgentRuntime(tx: Transaction, agentId: string): Promise<void> {
-  await tx.$queryRaw<Array<{ locked: number }>>(Prisma.sql`
-    WITH lock AS MATERIALIZED (
-      SELECT pg_advisory_xact_lock(hashtextextended(${`agent-run-agent:${agentId}`}, 0))
-    )
-    SELECT 1 AS locked FROM lock
+  await tx.$queryRaw<Array<{ acquired: boolean }>>(Prisma.sql`
+    SELECT pg_advisory_xact_lock(hashtextextended(${`agent-run-agent:${agentId}`}, 0)) IS NULL AS acquired
   `);
 }
 
