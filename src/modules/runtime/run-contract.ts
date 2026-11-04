@@ -4,6 +4,7 @@ import { z } from "zod";
 export const createAgentRunSchema = z.object({
   task: z.string().trim().min(1).max(4000),
   purpose: z.string().trim().min(10).max(300),
+  grantId: z.string().trim().min(1).max(128),
   target: z.string().trim().min(3).max(128).refine(
     (value) => !value.includes("*") && !value.includes("?"),
     "Wildcards are not allowed.",
@@ -19,6 +20,7 @@ export function digestAgentRunRequest(input: CreateAgentRunInput, agentId: strin
     agentId,
     task: input.task,
     purpose: input.purpose,
+    grantId: input.grantId,
     target: input.target,
     providerConsent: input.providerConsent,
   });
