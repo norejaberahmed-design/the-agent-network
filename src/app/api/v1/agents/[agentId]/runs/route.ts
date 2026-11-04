@@ -6,6 +6,7 @@ import { isTrustedMutationRequest } from "@/lib/request-security";
 import { prisma } from "@/lib/prisma";
 import { getAgentAccess } from "@/modules/agents/access";
 import { digestAgentRunRequest, createAgentRunSchema } from "@/modules/runtime/run-contract";
+import { lockAgentRuntime } from "@/modules/runtime/locks";
 
 export const runtime = "nodejs";
 
@@ -137,6 +138,7 @@ export async function POST(request: Request, context: RouteContext) {
   const correlationId = randomUUID();
   try {
     const created = await prisma.$transaction(async (tx) => {
+      await lockAgentRuntime(tx, agentId);
       const activeAgent = await tx.agent.findFirst({
         where: { id: agentId, status: "ACTIVE" },
         select: { id: true },
