@@ -86,14 +86,6 @@ suite("agent run queue API (PostgreSQL integration)", () => {
         },
       ],
     });
-    await prisma.agentCapability.create({
-      data: {
-        agentId: rateAgentId,
-        key: "SEARCH_PUBLIC_WEB",
-        description: "Search public web sources under an owner grant.",
-        languages: ["ar", "en"],
-      },
-    });
     await prisma.agent.create({
       data: {
         id: rateAgentId,
