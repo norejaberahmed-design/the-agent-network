@@ -25,17 +25,14 @@ async function cancelMemberRuns(
   actorUserId: string,
   reason: "ROLE_CHANGED" | "MEMBER_REMOVED",
 ) {
-  const initialRuns = await tx.agentRun.findMany({
-    where: {
-      ownerType: "ORGANIZATION",
-      ownerId: organizationId,
-      requesterUserId: memberUserId,
-      status: { in: ["QUEUED", "CLAIMED"] },
-    },
-    select: { id: true, agentId: true },
+  // Lock every organization agent, not only currently visible runs. This closes
+  // the race where a concurrent request queues a run while membership is revoked.
+  const agents = await tx.agent.findMany({
+    where: { ownerType: "ORGANIZATION", organizationOwnerId: organizationId },
+    select: { id: true },
+    orderBy: { id: "asc" },
   });
-  const agentIds = [...new Set(initialRuns.map((run) => run.agentId))].sort();
-  for (const agentId of agentIds) await lockAgentRuntime(tx, agentId);
+  for (const agent of agents) await lockAgentRuntime(tx, agent.id);
 
   const runs = await tx.agentRun.findMany({
     where: {
