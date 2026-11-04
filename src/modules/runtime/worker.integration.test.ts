@@ -13,7 +13,7 @@ const suffix = randomUUID();
 const ownerId = `worker-owner-${suffix}`;
 const agentId = `worker-agent-${suffix}`;
 const grantId = `worker-grant-${suffix}`;
-const originalDailyLimit = process.env.OPENAI_AGENT_MAX_DAILY_RUNS;
+
 
 const plan = {
   summary: "Research public supplier information and present the sources for owner review.",
