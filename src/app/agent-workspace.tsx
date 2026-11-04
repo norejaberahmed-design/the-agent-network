@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 
 type Mode = "search" | "ad";
@@ -63,7 +64,7 @@ export default function AgentWorkspace() {
   return (
     <main className="agent-shell">
       <header className="agent-topbar">
-        <a className="agent-brand" href="/"><span className="agent-mark">A</span><span>The Agent Network<small>وكيلك الشخصي · مساحة العمل</small></span></a>
+        <Link className="agent-brand" href="/"><span className="agent-mark">A</span><span>The Agent Network<small>وكيلك الشخصي · مساحة العمل</small></span></a>
         <span className="agent-status"><i /> نموذج تجريبي مباشر</span>
       </header>
 
