@@ -77,7 +77,7 @@ export async function POST(request: Request) {
         targetId: created.id,
         outcome: "COMPLETED",
         correlationId,
-        metadata: { kind: created.kind, classification: created.classification, purpose: created.purpose },
+        metadata: { kind: created.kind, classification: created.classification },
       },
     });
     return created;
