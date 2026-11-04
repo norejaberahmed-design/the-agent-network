@@ -8,7 +8,7 @@ Status: implemented as a server-side planning worker. It does not execute plan s
 - Authentication: Authorization: Bearer <AGENT_WORKER_SECRET>, compared in constant time.
 - One invocation claims and processes at most one run, and also purges expired run records.
 - The repository includes an opt-in GitHub Actions scheduler (`.github/workflows/agent-worker.yml`) that invokes one worker iteration hourly and can also be started manually. It remains inert until the operator adds `APP_URL` and `AGENT_WORKER_SECRET` as repository secrets after deployment. Scheduled workflows run from the default branch, so this workflow becomes active only after its reviewed PR is merged. Do not call the endpoint from browser code. Keep the secret in the scheduler secret store, never in a URL or client bundle.
-- The endpoint is disabled unless AGENT_WORKER_SECRET, OPENAI_API_KEY, and OPENAI_AGENT_MODEL are configured. The run-creation API additionally requires AGENT_WORKER_SCHEDULER_ENABLED=true so users cannot queue work into a worker pipeline that has not been activated.
+- The endpoint and run-creation API are disabled unless AGENT_WORKER_SECRET, OPENAI_API_KEY, and OPENAI_AGENT_MODEL are configured and AGENT_WORKER_SCHEDULER_ENABLED=true. This prevents both manual worker invocation and queued work before the trusted scheduler is activated.
 
 ## Required environment
 
