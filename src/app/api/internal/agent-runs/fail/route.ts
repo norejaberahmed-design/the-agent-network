@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { apiError } from "@/lib/api-response";
-import { isAuthorizedAgentWorker } from "@/lib/worker-auth";
+import { isAuthorizedAgentWorker, readBoundedWorkerJson } from "@/lib/worker-auth";
 import { failAgentRun } from "@/modules/runtime/worker";
 
 export const runtime = "nodejs";
@@ -14,12 +14,9 @@ const schema = z.object({
 
 export async function POST(request: Request) {
   if (!isAuthorizedAgentWorker(request)) return apiError("UNAUTHENTICATED", 401);
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    return apiError("INVALID_JSON", 400);
-  }
+  const decoded = await readBoundedWorkerJson(request);
+  if (!decoded.ok) return apiError("INVALID_JSON", 400);
+  const body = decoded.value;
   const parsed = schema.safeParse(body);
   if (!parsed.success) return apiError("VALIDATION_FAILED", 422);
   const status = await failAgentRun(
