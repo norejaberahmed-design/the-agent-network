@@ -144,6 +144,11 @@ export async function POST(request: Request, context: RouteContext) {
   const correlationId = randomUUID();
   try {
     const created = await prisma.$transaction(async (tx) => {
+      // Serialize per-requester and per-agent quota checks without coupling them
+      // to row locks used by grant mutation transactions.
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`agent-run-user:${session.user.id}`}, 0))`;
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`agent-run-agent:${agentId}`}, 0))`;
+
       const activeAgent = await tx.agent.findFirst({
         where: { id: agentId, status: "ACTIVE" },
         select: { id: true, configurationVersion: true },
@@ -266,7 +271,12 @@ export async function POST(request: Request, context: RouteContext) {
     if (error instanceof Error && error.message === "GRANT_RESERVATION_CONFLICT") {
       return apiError("CONFLICT", 409);
     }
-    if (error instanceof Error && error.message === "AGENT_NOT_ACTIVE") return apiError("CONFLICT", 409);
+    if (error instanceof Error && (
+      error.message === "AGENT_NOT_ACTIVE" || error.message === "AGENT_CONFIGURATION_CHANGED"
+    )) return apiError("CONFLICT", 409);
+    if (error instanceof Error && (
+      error.message === "USER_QUEUE_RATE_LIMIT" || error.message === "AGENT_QUEUE_LIMIT"
+    )) return apiError("RATE_LIMITED", 429);
     if (error instanceof Error && error.message === "ACCESS_REVOKED") return apiError("FORBIDDEN", 403);
     if (isUniqueConstraintError(error)) {
       const duplicate = await prisma.agentRun.findUnique({
