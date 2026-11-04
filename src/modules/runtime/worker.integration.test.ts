@@ -121,7 +121,15 @@ suite("agent worker (PostgreSQL integration)", () => {
     else process.env.OPENAI_AGENT_MAX_DAILY_RUNS = originalDailyLimit;
   });
 
-  it("claims a run, revalidates live permissions, moderates, persists a plan, and consumes the reservation", async () => {
+  it("claims a run, applies the owner's persisted persona, revalidates permissions, and persists a plan", async () => {
+    await prisma.userPersona.create({
+      data: {
+        userId: ownerId,
+        displayName: "وكيل جابر",
+        tone: "واضح ومباشر",
+        goal: "البحث عن الموردين الموثوقين",
+      },
+    });
     const run = await createRun({ idempotencyKey: `worker-success-${suffix}` });
     const provider = successfulProvider();
     const moderator = successfulModerator();
@@ -130,6 +138,11 @@ suite("agent worker (PostgreSQL integration)", () => {
 
     expect(result).toMatchObject({ status: "PLANNED", runId: run.id, stepCount: 1, sourceCount: 1 });
     expect(provider.generatePlan).toHaveBeenCalledOnce();
+    expect(provider.generatePlan).toHaveBeenCalledWith(expect.objectContaining({
+      trustedContext: expect.objectContaining({
+        persona: { displayName: "وكيل جابر", tone: "واضح ومباشر", goal: "البحث عن الموردين الموثوقين" },
+      }),
+    }));
     expect(moderator.moderate).toHaveBeenCalledTimes(2);
 
     const saved = await prisma.agentRun.findUniqueOrThrow({

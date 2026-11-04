@@ -96,6 +96,19 @@ model User {
   approvalRequestsCreated ActionApproval[] @relation("ApprovalRequester")
   approvalRequestsDecided ActionApproval[] @relation("ApprovalApprover")
   requestedAgentRuns AgentRun[] @relation("AgentRunRequester")
+  persona        UserPersona?
+}
+
+model UserPersona {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  displayName String   @db.VarChar(60)
+  tone        String   @db.VarChar(40)
+  goal        String   @db.VarChar(240)
+  version     Int      @default(1)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Session {
