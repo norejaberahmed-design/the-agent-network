@@ -102,3 +102,44 @@ test("personal workspace refuses provider submission without explicit consent", 
   await expect(page.locator(".agent-error")).toContainText("وافق أولاً");
   expect(submitted).toBe(false);
 });
+
+test("personal workspace displays source-linked evidence without claiming independent verification", async ({ page }) => {
+  await mockReadyPersonalAgent(page);
+  await page.route("**/api/v1/agents/agent-test-1/runs", async route => {
+    if (route.request().method() === "POST") {
+      await route.fulfill({
+        status: 202,
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: {
+            id: "run-evidence-1",
+            task: "ابحث عن المورد",
+            status: "PLANNED",
+            planSummary: "وجدت مصدراً عاماً للمراجعة.",
+            planSources: [{
+              url: "https://example.com/supplier",
+              title: "Supplier public page",
+              evidence: [{ claim: "The supplier lists a Riyadh office." }],
+            }],
+            steps: [],
+            createdAt: new Date().toISOString(),
+            completedAt: new Date().toISOString(),
+          },
+          executionEnabled: false,
+        }),
+      });
+      return;
+    }
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: [] }) });
+  });
+
+  await page.goto("/");
+  await page.getByPlaceholder(/ابحث عن موزعي معدات الشبكات/).fill("ابحث عن المورد");
+  await page.getByLabel(/أوافق على إرسال نص المهمة/).check();
+  await page.getByRole("button", { name: /ابدأ المهمة/ }).click();
+
+  await expect(page.getByRole("heading", { name: "أعد الوكيل خطة بحث أولية" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Supplier public page" })).toHaveAttribute("href", "https://example.com/supplier");
+  await expect(page.getByText("ادعاء مرتبط بالمصدر: The supplier lists a Riyadh office.")).toBeVisible();
+  await expect(page.getByText(/لم تخضع بعد لفحص مستقل/)).toBeVisible();
+});
