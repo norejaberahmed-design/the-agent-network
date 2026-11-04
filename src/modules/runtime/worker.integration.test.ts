@@ -26,7 +26,6 @@ const plan = {
   sources: [{
     url: "https://example.com/supplier",
     title: "Supplier official site",
-    evidence: [{ claim: "The page identifies the supplier as a public business." }],
   }],
   evidence: [{
     claim: "The page identifies the supplier as a public business.",
@@ -170,9 +169,9 @@ suite("agent worker (PostgreSQL integration)", () => {
       action: "SEARCH_PUBLIC_WEB",
       status: "PROPOSED",
     });
-    expect(saved.planSources).toEqual(plan.sources.map(({ evidence, ...source }) => ({
+    expect(saved.planSources).toEqual(plan.sources.map((source) => ({
       ...source,
-      evidence,
+      evidence: [{ claim: "The page identifies the supplier as a public business." }],
     })));
 
     const grant = await prisma.permissionGrant.findUniqueOrThrow({ where: { id: grantId } });
