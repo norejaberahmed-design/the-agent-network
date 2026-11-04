@@ -31,6 +31,8 @@ h2 { margin: 0 0 12px; font-size: 23px; }
 .actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 28px; }
 .button { display: inline-flex; justify-content: center; align-items: center; min-height: 46px; padding: 0 19px; border: 1px solid var(--green); border-radius: 12px; background: var(--green); color: white; font-weight: 700; }
 .button:hover { background: var(--green-dark); }
+.button-danger { border-color: #a33b36; background: #a33b36; }
+.button-danger:hover { background: #842f2b; }
 .button.secondary { background: transparent; color: var(--green); }
 .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; padding-bottom: 64px; }
 .panel { padding: 22px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); }
