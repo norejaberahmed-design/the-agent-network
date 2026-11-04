@@ -125,7 +125,7 @@ export default function MemoryManager() {
           </div>
         </article>
       ))}
-      {error ? <p role="alert" className="agent-error">{error}</p> : null}
+      {error ? <p role="alert" className="agent-memory-error">{error}</p> : null}
       {!loading && memories.length === 0 && !error ? <small>لا توجد معلومات محفوظة بعد.</small> : null}
     </section>
   );
