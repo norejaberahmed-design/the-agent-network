@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import MemoryManager from "./memory-manager";
 import { useEffect, useState } from "react";
 
 type Mode = "search" | "ad";
@@ -244,6 +245,7 @@ export default function AgentWorkspace() {
             <button className="agent-save" onClick={() => void saveProfile()} disabled={profileStorage === "checking"}>{profileStorage === "account" ? "حفظ الهوية في حسابك" : "حفظ الهوية"}</button>
             <small className="agent-local-note">{profileStorage === "account" ? "هويتك محفوظة في حسابك ويمكن استعادتها بعد تسجيل الدخول من جهاز آخر." : profileStorage === "device" ? "أنت تستخدم الوضع التجريبي؛ تُحفظ الهوية على هذا الجهاز فقط. سجّل الدخول لحفظها في حسابك." : profileStorage === "error" ? "تعذر التحقق من الحفظ السحابي. لن أدّعي أن الهوية حُفظت في حسابك." : "جارٍ التحقق من مكان حفظ هويتك..."}</small>
           </div>
+          <MemoryManager />
           <div className="agent-side-note"><strong>أنت صاحب القرار</strong><p>هذه النسخة لا ترسل رسائل ولا تنفذ عمليات شراء أو تعاقد. ستبقى أي خطوة خارجية بحاجة إلى موافقتك.</p></div>
         </aside>
 
