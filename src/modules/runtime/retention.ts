@@ -86,3 +86,48 @@ export async function purgeExpiredAgentRuns(
 
   return { deleted, cancelled };
 }
+
+export async function purgeExpiredPersonalMemories(
+  prisma: PrismaClient,
+  now = new Date(),
+  batchSize = 100,
+): Promise<{ deleted: number }> {
+  const expired = await prisma.personalMemory.findMany({
+    where: { expiresAt: { lte: now }, status: { not: "DELETED" } },
+    orderBy: { expiresAt: "asc" },
+    take: Math.min(Math.max(batchSize, 1), 500),
+    select: { id: true, userId: true, kind: true, version: true },
+  });
+
+  let deleted = 0;
+  for (const memory of expired) {
+    const result = await prisma.$transaction(async (tx) => {
+      const changed = await tx.personalMemory.updateMany({
+        where: { id: memory.id, userId: memory.userId, version: memory.version, expiresAt: { lte: now }, status: { not: "DELETED" } },
+        data: {
+          status: "DELETED",
+          content: "[expired]",
+          sourceReference: null,
+          confidence: null,
+          version: { increment: 1 },
+        },
+      });
+      if (changed.count !== 1) return false;
+      await tx.auditEvent.create({
+        data: {
+          ownerType: "USER",
+          ownerId: memory.userId,
+          action: "personal_memory.expired",
+          targetType: "PersonalMemory",
+          targetId: memory.id,
+          outcome: "COMPLETED",
+          correlationId: randomUUID(),
+          metadata: { kind: memory.kind },
+        },
+      });
+      return true;
+    });
+    if (result) deleted += 1;
+  }
+  return { deleted };
+}
