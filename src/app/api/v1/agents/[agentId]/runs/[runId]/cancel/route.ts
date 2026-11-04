@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { Prisma } from "@prisma/client";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { apiError } from "@/lib/api-response";
@@ -38,7 +39,18 @@ export async function POST(request: Request, context: RouteContext) {
         select: { id: true, status: true, grantIds: true },
       });
       if (!run) return null;
-      if (run.status !== "QUEUED" && run.status !== "CLAIMED") throw new Error("RUN_NOT_CANCELLABLE");
+      if (run.grantIds.length > 0) {
+        await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+          SELECT "id" FROM "PermissionGrant"
+          WHERE "id" IN (${Prisma.join(run.grantIds)})
+          ORDER BY "id"
+          FOR UPDATE
+        `);
+      }
+      const currentRun = await tx.agentRun.findFirst({ where: { id: runId, agentId } });
+      if (!currentRun || (currentRun.status !== "QUEUED" && currentRun.status !== "CLAIMED")) {
+        throw new Error("RUN_NOT_CANCELLABLE");
+      }
 
       const changed = await tx.agentRun.updateMany({
         where: { id: runId, agentId, status: { in: ["QUEUED", "CLAIMED"] } },
