@@ -152,7 +152,7 @@ export function RunManager({
             <select id="run-grant" value={selected} onChange={(event) => setSelected(Number(event.target.value))}>
               {grantOptions.map((grant, index) => (
                 <option key={`${grant.purpose}:${grant.target}:${index}`} value={index}>
-                  {`${grant.purpose} — ${grant.target}`}
+                  {`${grant.purpose} — ${grant.target} — ${grant.actionScope.join(", ")}`}
                 </option>
               ))}
             </select>
