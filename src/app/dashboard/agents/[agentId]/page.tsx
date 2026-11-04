@@ -9,6 +9,7 @@ import { FieldPolicyManager } from "./field-policy-manager";
 import { AgentLifecycleManager } from "./lifecycle-manager";
 import { ActionApprovalManager } from "./action-approval-manager";
 import { RunManager } from "./run-manager";
+import { AgentProfileEditor } from "./profile-editor";
 
 export const dynamic = "force-dynamic";
 
@@ -85,6 +86,11 @@ export default async function AgentDetailPage({
     take: 50,
   }) : [];
 
+  const runtimeConfigured = Boolean(
+    process.env.OPENAI_API_KEY && process.env.OPENAI_AGENT_MODEL && process.env.AGENT_WORKER_SECRET &&
+    process.env.AGENT_WORKER_SCHEDULER_ENABLED === "true",
+  );
+
   const grantOptions = grants
     .filter((grant) =>
       grant.status === "ACTIVE" &&
@@ -116,6 +122,18 @@ export default async function AgentDetailPage({
           <span className="muted">الإصدار {access.agent.configurationVersion}</span>
         </div>
       </section>
+      <AgentProfileEditor
+        agentId={agentId}
+        initialProfile={{
+          name: access.agent.name,
+          purpose: access.agent.purpose,
+          publicDescription: access.agent.publicDescription,
+          primaryLanguage: access.agent.primaryLanguage === "en" ? "en" : "ar",
+          supportedLanguages: access.agent.supportedLanguages,
+          configurationVersion: access.agent.configurationVersion,
+        }}
+        canManage={access.canManage}
+      />
       <AgentLifecycleManager
         agentId={agentId}
         initialStatus={access.agent.status}
@@ -136,6 +154,7 @@ export default async function AgentDetailPage({
         <RunManager
           agentId={agentId}
           active={access.agent.status === "ACTIVE"}
+          runtimeConfigured={runtimeConfigured}
           initialRuns={runs.map((run) => ({ ...run, planSources: run.planSources as Array<{ url: string; title: string }> | null, createdAt: run.createdAt.toISOString() }))}
           grantOptions={grantOptions}
         />

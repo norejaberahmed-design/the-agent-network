@@ -15,6 +15,7 @@ export async function getAgentAccess(agentId: string, userId: string) {
       status: true,
       discoverable: true,
       primaryLanguage: true,
+      supportedLanguages: true,
       configurationVersion: true,
     },
   });

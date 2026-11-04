@@ -20,7 +20,6 @@ function isUniqueConstraintError(error: unknown): boolean {
 export async function GET(_request: Request, context: RouteContext) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) return apiError("UNAUTHENTICATED", 401);
-
   const { agentId } = await context.params;
   const access = await getAgentAccess(agentId, session.user.id);
   if (!access?.canViewPrivate) return apiError("FORBIDDEN", 403);
@@ -61,6 +60,12 @@ export async function POST(request: Request, context: RouteContext) {
   if (!(await isTrustedMutationRequest(request))) return apiError("INVALID_ORIGIN", 403);
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) return apiError("UNAUTHENTICATED", 401);
+  if (
+    !process.env.OPENAI_API_KEY ||
+    !process.env.OPENAI_AGENT_MODEL ||
+    !process.env.AGENT_WORKER_SECRET ||
+    process.env.AGENT_WORKER_SCHEDULER_ENABLED !== "true"
+  ) return apiError("WORKER_DISABLED", 503);
 
   const { agentId } = await context.params;
   const access = await getAgentAccess(agentId, session.user.id);

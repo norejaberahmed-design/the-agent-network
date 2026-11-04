@@ -14,6 +14,7 @@ const previous = {
   secret: process.env.AGENT_WORKER_SECRET,
   key: process.env.OPENAI_API_KEY,
   model: process.env.OPENAI_AGENT_MODEL,
+  scheduler: process.env.AGENT_WORKER_SCHEDULER_ENABLED,
 };
 
 afterEach(() => {
@@ -23,6 +24,8 @@ afterEach(() => {
   else process.env.OPENAI_API_KEY = previous.key;
   if (previous.model === undefined) delete process.env.OPENAI_AGENT_MODEL;
   else process.env.OPENAI_AGENT_MODEL = previous.model;
+  if (previous.scheduler === undefined) delete process.env.AGENT_WORKER_SCHEDULER_ENABLED;
+  else process.env.AGENT_WORKER_SCHEDULER_ENABLED = previous.scheduler;
   vi.mocked(runAgentWorkerOnce).mockReset();
 });
 
@@ -40,6 +43,7 @@ describe("internal agent worker endpoint", () => {
     process.env.AGENT_WORKER_SECRET = "a-long-test-secret-value-0123456789abcdef";
     delete process.env.OPENAI_API_KEY;
     delete process.env.OPENAI_AGENT_MODEL;
+    process.env.AGENT_WORKER_SCHEDULER_ENABLED = "false";
     const response = await POST(new Request("http://localhost/api/internal/agent-worker", {
       method: "POST",
       headers: { Authorization: "Bearer a-long-test-secret-value-0123456789abcdef" },
@@ -52,6 +56,7 @@ describe("internal agent worker endpoint", () => {
     process.env.AGENT_WORKER_SECRET = "a-long-test-secret-value-0123456789abcdef";
     process.env.OPENAI_API_KEY = "test-only-not-a-real-key";
     process.env.OPENAI_AGENT_MODEL = "test-model";
+    process.env.AGENT_WORKER_SCHEDULER_ENABLED = "true";
     vi.mocked(runAgentWorkerOnce).mockResolvedValue({
       status: "PLANNED",
       runId: "run-1",

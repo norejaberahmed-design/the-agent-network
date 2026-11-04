@@ -26,7 +26,9 @@ export async function POST(request: Request) {
     const retention = await purgeExpiredAgentRuns(prisma);
     const apiKey = process.env.OPENAI_API_KEY;
     const model = process.env.OPENAI_AGENT_MODEL;
-    if (!apiKey || !model) return apiError("WORKER_DISABLED", 503);
+    if (!apiKey || !model || process.env.AGENT_WORKER_SCHEDULER_ENABLED !== "true") {
+      return apiError("WORKER_DISABLED", 503);
+    }
 
     const result = await runAgentWorkerOnce({
       prisma,
