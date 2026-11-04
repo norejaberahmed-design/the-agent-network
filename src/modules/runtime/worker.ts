@@ -347,8 +347,14 @@ async function cancelRunForAuthorizationFailure(
   now: Date,
 ): Promise<AgentWorkerResult> {
   await prisma.$transaction(async (tx) => {
-    const changed = await tx.agentRun.updateMany({
+    await lockAgentRuntime(tx, run.agentId);
+    await lockGrantRows(tx, run.grantIds);
+    const current = await tx.agentRun.findFirst({
       where: { id: run.id, status: "PLANNING", workerId },
+    });
+    if (!current) return;
+    const changed = await tx.agentRun.updateMany({
+      where: { id: current.id, status: "PLANNING", workerId },
       data: {
         status: "CANCELLED",
         errorCode: "AUTHORIZATION_REVOKED",
@@ -360,17 +366,17 @@ async function cancelRunForAuthorizationFailure(
       },
     });
     if (changed.count !== 1) return;
-    await releaseReservations(tx, run);
+    await releaseReservations(tx, current);
     await tx.auditEvent.create({
       data: {
-        agentId: run.agentId,
-        ownerType: run.ownerType,
-        ownerId: run.ownerId,
+        agentId: current.agentId,
+        ownerType: current.ownerType,
+        ownerId: current.ownerId,
         action: "agent.run.cancelled",
         targetType: "AgentRun",
-        targetId: run.id,
+        targetId: current.id,
         outcome: "DENIED",
-        policyVersion: String(run.agentConfigurationVersion),
+        policyVersion: String(current.agentConfigurationVersion),
         correlationId: randomUUID(),
         metadata: { reason: "AUTHORIZATION_REVOKED" },
       },
