@@ -195,6 +195,7 @@ export async function POST(request: Request, context: RouteContext) {
           authorizedActions,
           grantIds: selectedGrantIds,
           requestDigest,
+          agentConfigurationVersion: access.agent.configurationVersion,
           idempotencyKey: input.idempotencyKey,
           status: "QUEUED",
           maxAttempts: 3,
