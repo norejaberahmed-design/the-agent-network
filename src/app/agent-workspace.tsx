@@ -41,7 +41,6 @@ export default function AgentWorkspace() {
   const [grantId, setGrantId] = useState("");
   const [providerConsent, setProviderConsent] = useState(false);
   const [runtimeRun, setRuntimeRun] = useState<AgentRun | null>(null);
-  const [runtimeLoading, setRuntimeLoading] = useState(false);
 
   useEffect(() => {
     try {
@@ -181,7 +180,6 @@ export default function AgentWorkspace() {
         const selectedGrant = grants.find(grant => grant.id === grantId);
         if (!selectedGrant) throw new Error("لا يوجد تفويض بحث نشط. افتح إعدادات الوكيل وأنشئ تفويضاً محدوداً للبحث في الويب.");
         if (!providerConsent) throw new Error("وافق أولاً على معالجة نص المهمة بواسطة مزود الذكاء الاصطناعي.");
-        setRuntimeLoading(true);
         const res = await fetch(`/api/v1/agents/${encodeURIComponent(agentId)}/runs`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -217,7 +215,6 @@ export default function AgentWorkspace() {
       setError(e instanceof Error ? e.message : "حدث خطأ غير متوقع.");
     } finally {
       setBusy(false);
-      setRuntimeLoading(false);
     }
   }
 
@@ -225,7 +222,7 @@ export default function AgentWorkspace() {
     <main className="agent-shell">
       <header className="agent-topbar">
         <Link className="agent-brand" href="/"><span className="agent-mark">A</span><span>The Agent Network<small>وكيلك الشخصي · مساحة العمل</small></span></Link>
-        <div className="agent-header-actions"><Link className="agent-login" href="/dashboard">مساحة حسابي</Link><Link className="agent-login" href="/sign-in">دخول الأعضاء</Link><span className="agent-status"><i /> نموذج تجريبي مباشر</span></div>
+        <div className="agent-header-actions"><Link className="agent-login" href="/dashboard">مساحة حسابي</Link><Link className="agent-login" href="/sign-in">دخول الأعضاء</Link><span className="agent-status"><i /> معاينة الوكيل الشخصي</span></div>
       </header>
 
       <section className="agent-layout">
