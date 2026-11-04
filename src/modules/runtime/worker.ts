@@ -128,11 +128,17 @@ async function validateLiveAuthorization(
   };
 }
 
+type ClaimResult =
+  | { kind: "CLAIMED"; run: AgentRun }
+  | { kind: "CANCELLED"; runId: string; reason: string }
+  | { kind: "DEAD_LETTER"; runId: string; code: string };
+
 async function claimNextRun(
   prisma: PrismaClient,
   workerId: string,
   now: Date,
-): Promise<AgentRun | null> {
+): Promise<ClaimResult | null> {
+  let lastTerminal: Exclude<ClaimResult, { kind: "CLAIMED" }> | null = null;
   // Candidate discovery is intentionally unlocked. The per-agent advisory lock,
   // followed by deterministic grant row locks and a conditional update, is the
   // linearization point shared with cancellation, lifecycle and grant revocation.
@@ -146,7 +152,7 @@ async function claimNextRun(
       },
       orderBy: [{ availableAt: "asc" }, { createdAt: "asc" }],
     });
-    if (!candidate) return null;
+    if (!candidate) return lastTerminal;
 
     const result = await prisma.$transaction(async (tx) => {
       await lockAgentRuntime(tx, candidate.agentId);
@@ -204,7 +210,9 @@ async function claimNextRun(
             },
           });
         }
-        return null;
+        return dead.count === 1
+          ? { kind: "DEAD_LETTER" as const, runId: current.id, code: "WORKER_LEASE_EXHAUSTED" }
+          : null;
       }
 
       const authorization = await validateLiveAuthorization(tx, current, now);
@@ -242,7 +250,9 @@ async function claimNextRun(
             },
           });
         }
-        return null;
+        return cancelled.count === 1
+          ? { kind: "CANCELLED" as const, runId: current.id, reason: "AUTHORIZATION_REVOKED" }
+          : null;
       }
 
       const leaseUntil = new Date(now.getTime() + 90_000);
@@ -266,16 +276,20 @@ async function claimNextRun(
         },
       });
       if (changed.count !== 1) return null;
-      return tx.agentRun.findUnique({ where: { id: current.id } });
+      const claimed = await tx.agentRun.findUnique({ where: { id: current.id } });
+      return claimed ? { kind: "CLAIMED" as const, run: claimed } : null;
     }, {
       isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
       maxWait: 5_000,
       timeout: 10_000,
     });
 
-    if (result) return result;
+    if (result?.kind === "CLAIMED") return result;
+    if (result?.kind === "CANCELLED" || result?.kind === "DEAD_LETTER") {
+      lastTerminal = result;
+    }
   }
-  return null;
+  return lastTerminal;
 }
 
 async function failRun(
@@ -405,8 +419,15 @@ export async function runAgentWorkerOnce(args: {
     return { status: "THROTTLED", reason: "DAILY_RUN_LIMIT" };
   }
 
-  const claimed = await claimNextRun(prisma, workerId, now);
-  if (!claimed) return { status: "IDLE" };
+  const claim = await claimNextRun(prisma, workerId, now);
+  if (!claim) return { status: "IDLE" };
+  if (claim.kind === "CANCELLED") {
+    return { status: "CANCELLED", runId: claim.runId, reason: claim.reason };
+  }
+  if (claim.kind === "DEAD_LETTER") {
+    return { status: "DEAD_LETTER", runId: claim.runId, code: claim.code };
+  }
+  const claimed = claim.run;
 
   const authorization = await prisma.$transaction(async (tx) => {
     await lockAgentRuntime(tx, claimed.agentId);
