@@ -22,6 +22,7 @@ export default function AgentWorkspace() {
   const [busy, setBusy] = useState(false);
   const [response, setResponse] = useState<AgentResponse | null>(null);
   const [error, setError] = useState("");
+  const [profileStorage, setProfileStorage] = useState<"checking" | "account" | "device" | "error">("checking");
 
   useEffect(() => {
     try {
@@ -33,11 +34,54 @@ export default function AgentWorkspace() {
         if (profile.goal) setGoal(profile.goal);
       }
     } catch { /* Ignore invalid local profile data. */ }
+
+    let active = true;
+    void fetch("/api/v1/me/persona", { cache: "no-store" })
+      .then(async response => {
+        if (!active) return;
+        if (response.status === 401) {
+          setProfileStorage("device");
+          return;
+        }
+        if (!response.ok) {
+          setProfileStorage("error");
+          return;
+        }
+        const body = await response.json();
+        if (!active) return;
+        if (body.data) {
+          setDisplayName(body.data.displayName);
+          setTone(body.data.tone);
+          setGoal(body.data.goal);
+        }
+        setProfileStorage("account");
+      })
+      .catch(() => { if (active) setProfileStorage("error"); });
+    return () => { active = false; };
   }, []);
 
-  function saveProfile() {
-    localStorage.setItem("tan-agent-profile-v1", JSON.stringify({ displayName, tone, goal }));
+  async function saveProfile() {
     setError("");
+    try {
+      const response = await fetch("/api/v1/me/persona", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ displayName, tone, goal }),
+      });
+      if (response.status === 401) {
+        localStorage.setItem("tan-agent-profile-v1", JSON.stringify({ displayName, tone, goal }));
+        setProfileStorage("device");
+        return;
+      }
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error || "تعذر حفظ الهوية في الحساب.");
+      setDisplayName(body.data.displayName);
+      setTone(body.data.tone);
+      setGoal(body.data.goal);
+      setProfileStorage("account");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "تعذر حفظ الهوية.");
+    }
   }
 
   async function runTask(value = task) {
@@ -65,7 +109,7 @@ export default function AgentWorkspace() {
     <main className="agent-shell">
       <header className="agent-topbar">
         <Link className="agent-brand" href="/"><span className="agent-mark">A</span><span>The Agent Network<small>وكيلك الشخصي · مساحة العمل</small></span></Link>
-        <div className="agent-header-actions"><Link className="agent-login" href="/sign-in">دخول الأعضاء</Link><span className="agent-status"><i /> نموذج تجريبي مباشر</span></div>
+        <div className="agent-header-actions"><Link className="agent-login" href="/dashboard">مساحة حسابي</Link><Link className="agent-login" href="/sign-in">دخول الأعضاء</Link><span className="agent-status"><i /> نموذج تجريبي مباشر</span></div>
       </header>
 
       <section className="agent-layout">
@@ -76,8 +120,8 @@ export default function AgentWorkspace() {
             <label>اسم الوكيل<input value={displayName} onChange={e => setDisplayName(e.target.value)} maxLength={60} /></label>
             <label>أسلوب التواصل<select value={tone} onChange={e => setTone(e.target.value)}><option>واضح ومباشر</option><option>رسمي واحترافي</option><option>ودود ومقنع</option><option>تحليلي ودقيق</option></select></label>
             <label>هدفك الأساسي<textarea value={goal} onChange={e => setGoal(e.target.value)} rows={3} maxLength={240} /></label>
-            <button className="agent-save" onClick={saveProfile}>حفظ الهوية على هذا الجهاز</button>
-            <small className="agent-local-note">تُحفظ هذه التفضيلات محلياً في متصفحك فقط حالياً.</small>
+            <button className="agent-save" onClick={() => void saveProfile()} disabled={profileStorage === "checking"}>{profileStorage === "account" ? "حفظ الهوية في حسابك" : "حفظ الهوية"}</button>
+            <small className="agent-local-note">{profileStorage === "account" ? "هويتك محفوظة في حسابك ويمكن استعادتها بعد تسجيل الدخول من جهاز آخر." : profileStorage === "device" ? "أنت تستخدم الوضع التجريبي؛ تُحفظ الهوية على هذا الجهاز فقط. سجّل الدخول لحفظها في حسابك." : profileStorage === "error" ? "تعذر التحقق من الحفظ السحابي. لن أدّعي أن الهوية حُفظت في حسابك." : "جارٍ التحقق من مكان حفظ هويتك..."}</small>
           </div>
           <div className="agent-side-note"><strong>أنت صاحب القرار</strong><p>هذه النسخة لا ترسل رسائل ولا تنفذ عمليات شراء أو تعاقد. ستبقى أي خطوة خارجية بحاجة إلى موافقتك.</p></div>
         </aside>
