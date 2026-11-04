@@ -84,7 +84,7 @@ suite("agent worker lease protocol (PostgreSQL integration)", () => {
   });
 
   it("leases once, rejects another worker, renews leases, retries and dead-letters at the ceiling", async () => {
-    const first = await claimNextAgentRun("worker-one");
+    const first = await claimNextAgentRun("worker-one", { agentId });
     expect(first).toMatchObject({
       id: runId,
       status: "CLAIMED",
@@ -93,7 +93,7 @@ suite("agent worker lease protocol (PostgreSQL integration)", () => {
       agentConfigurationVersion: 4,
     });
 
-    const duplicate = await claimNextAgentRun("worker-two");
+    const duplicate = await claimNextAgentRun("worker-two", { agentId });
     expect(duplicate).toBeNull();
     expect(await heartbeatAgentRun(runId, "worker-two")).toBe(false);
     expect(await heartbeatAgentRun(runId, "worker-one")).toBe(true);
@@ -107,12 +107,12 @@ suite("agent worker lease protocol (PostgreSQL integration)", () => {
     expect(saved).toMatchObject({ status: "QUEUED", attemptCount: 1, workerId: null });
 
     await prisma.agentRun.update({ where: { id: runId }, data: { availableAt: new Date(Date.now() - 1000) } });
-    const second = await claimNextAgentRun("worker-two");
+    const second = await claimNextAgentRun("worker-two", { agentId });
     expect(second).toMatchObject({ id: runId, status: "CLAIMED", attemptCount: 2 });
     await expect(failAgentRun(runId, "worker-two", "PROVIDER_UNAVAILABLE", true)).resolves.toBe("QUEUED");
 
     await prisma.agentRun.update({ where: { id: runId }, data: { availableAt: new Date(Date.now() - 1000) } });
-    const third = await claimNextAgentRun("worker-three");
+    const third = await claimNextAgentRun("worker-three", { agentId });
     expect(third).toMatchObject({ id: runId, status: "CLAIMED", attemptCount: 3 });
 
     await prisma.agentRun.update({
@@ -177,7 +177,7 @@ suite("agent worker lease protocol (PostgreSQL integration)", () => {
           status: "QUEUED",
         },
       });
-      const claimed = await claimNextAgentRun("worker-four");
+      const claimed = await claimNextAgentRun("worker-four", { agentId: pausedAgentId });
       expect(claimed?.id).not.toBe(pausedRunId);
       const saved = await prisma.agentRun.findUniqueOrThrow({ where: { id: pausedRunId } });
       expect(saved).toMatchObject({ status: "CANCELLED", errorCode: "AGENT_NOT_ACTIVE" });
@@ -249,7 +249,7 @@ suite("agent worker lease protocol (PostgreSQL integration)", () => {
       await prisma.membership.delete({
         where: { organizationId_userId: { organizationId, userId: ownerId } },
       });
-      expect(await claimNextAgentRun("worker-org-worker")).toBeNull();
+      expect(await claimNextAgentRun("worker-org-worker", { agentId: organizationAgentId })).toBeNull();
       const saved = await prisma.agentRun.findUniqueOrThrow({ where: { id: organizationRunId } });
       expect(saved).toMatchObject({ status: "CANCELLED", errorCode: "REQUESTER_ACCESS_REVOKED" });
       const grant = await prisma.permissionGrant.findUniqueOrThrow({ where: { id: organizationGrantId } });
