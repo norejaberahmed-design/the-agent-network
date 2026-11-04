@@ -64,6 +64,46 @@ export async function POST(request: Request, context: RouteContext) {
       },
     });
     if (changed.count !== 1) return { state: "CONFLICT" as const };
+    const affectedApprovals = await tx.actionApproval.findMany({
+      where: {
+        grantId,
+        status: { in: ["PENDING", "APPROVED"] },
+      },
+      select: { id: true, status: true, version: true },
+    });
+    const cancelledApprovals = await tx.actionApproval.updateMany({
+      where: {
+        grantId,
+        status: { in: ["PENDING", "APPROVED"] },
+      },
+      data: {
+        status: "CANCELLED",
+        cancelledAt: new Date(),
+        decisionReason: "GRANT_REVOKED",
+        version: { increment: 1 },
+      },
+    });
+    if (cancelledApprovals.count !== affectedApprovals.length) {
+      throw new Error("APPROVAL_REVOCATION_CONFLICT");
+    }
+    for (const approval of affectedApprovals) {
+      await tx.auditEvent.create({
+        data: {
+          actorUserId: session.user.id,
+          agentId,
+          ownerType: access.ownerType,
+          ownerId: access.ownerId,
+          action: "action_approval.cancelled",
+          targetType: "ActionApproval",
+          targetId: approval.id,
+          outcome: "DENIED",
+          policyVersion: String(approval.version + 1),
+          correlationId,
+          metadata: { reason: "GRANT_REVOKED", previousStatus: approval.status },
+        },
+      });
+    }
+
     for (const run of queuedRuns) {
       const cancelled = await tx.agentRun.updateMany({
         where: { id: run.id, agentId, status: { in: ["QUEUED", "PLANNING"] } },
