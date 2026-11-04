@@ -102,3 +102,6 @@ h2 { margin: 0 0 12px; font-size: 23px; }
 .agent-memory-actions button:last-child{color:#99443e}
 .agent-side-section>form{display:grid;gap:10px;margin-top:12px}
 .agent-side-section>h2{margin:9px 0 0;color:#263a30;font-size:15px}
+
+.agent-memory-error{margin-top:12px;padding:10px;border-radius:9px;background:#fff6ee;color:#87542c;font-size:11px;line-height:1.7}
+.agent-memory-item textarea{width:100%;padding:10px;border:1px solid #dce5dc;border-radius:8px;background:#fff;color:#20332a;font:inherit;font-size:12px;line-height:1.7}
