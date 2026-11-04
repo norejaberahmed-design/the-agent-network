@@ -242,6 +242,10 @@ suite("agent run queue API (PostgreSQL integration)", () => {
     );
     expect(queued.status).toBe(202);
     const queuedBody = await queued.json();
+    await prisma.agentRun.update({
+      where: { id: queuedBody.data.id },
+      data: { status: "PLANNING", workerId: "grant-revoke-worker", claimedAt: new Date(), leaseExpiresAt: new Date(Date.now() + 60_000) },
+    });
     const revoked = await revokeGrant(request({}), {
       params: Promise.resolve({ agentId, grantId }),
     });
