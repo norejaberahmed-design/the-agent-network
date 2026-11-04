@@ -111,6 +111,21 @@ async function claimOne(tx: Tx, workerId: string, leaseMs: number, now: Date) {
   const current = await tx.agentRun.findUnique({ where: { id: candidate.id } });
   if (!current || current.status !== "QUEUED" || current.availableAt > now) return null;
 
+  if (current.ownerType === "USER" && current.ownerId !== current.requesterUserId) {
+    await cancelInvalidQueuedRun(tx, current, "REQUESTER_ACCESS_REVOKED", now);
+    return null;
+  }
+  if (current.ownerType === "ORGANIZATION") {
+    const membership = await tx.membership.findUnique({
+      where: { organizationId_userId: { organizationId: current.ownerId, userId: current.requesterUserId } },
+      select: { role: true },
+    });
+    if (!membership || !["OWNER", "ADMIN", "AGENT_MANAGER"].includes(membership.role)) {
+      await cancelInvalidQueuedRun(tx, current, "REQUESTER_ACCESS_REVOKED", now);
+      return null;
+    }
+  }
+
   const agent = await tx.agent.findUnique({
     where: { id: current.agentId },
     select: { status: true, configurationVersion: true },
