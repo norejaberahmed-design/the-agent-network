@@ -318,6 +318,7 @@ export async function recoverExpiredAgentRunLeases(): Promise<{ requeued: number
         where: { id: item.id, status: "CLAIMED", leaseExpiresAt: { lte: now } },
       });
       if (!initial) return null;
+      await lockAgentRuntime(tx, initial.agentId);
       await lockRunGrants(tx, initial);
       const run = await tx.agentRun.findFirst({
         where: { id: item.id, status: "CLAIMED", leaseExpiresAt: { lte: now } },
