@@ -9,6 +9,17 @@ type GrantOption = {
   actionScope: string[];
   dataScope: string[];
 };
+const statusLabels: Record<string, string> = {
+  QUEUED: "بانتظار العامل",
+  CLAIMED: "حُجزت للعامل",
+  PLANNING: "جارٍ التخطيط",
+  WAITING_APPROVAL: "بانتظار موافقتك",
+  COMPLETED: "مكتملة",
+  FAILED: "فشلت",
+  CANCELLED: "أُلغيت",
+  DEAD_LETTER: "توقفت بعد استنفاد المحاولات",
+};
+
 type Run = {
   id: string;
   task: string;
@@ -134,11 +145,11 @@ export function RunManager({
         {runs.map((run) => (
           <article className="panel" key={run.id}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-              <strong>{run.status}</strong><span className="muted">{new Date(run.createdAt).toLocaleString("ar-SA")}</span>
+              <strong>{statusLabels[run.status] ?? run.status}</strong><span className="muted">{new Date(run.createdAt).toLocaleString("ar-SA")}</span>
             </div>
             <p>{run.task}</p>
-            <p className="muted">النطاق: {run.target} · الصلاحيات: {run.authorizedActions.join("، ")}</p>
-            {run.status === "QUEUED" ? (
+            <p className="muted">النطاق: {run.target} · الصلاحيات: {run.authorizedActions.join("، ")} · المحاولة {run.attemptCount}/{run.maxAttempts}</p>
+            {run.status === "QUEUED" || run.status === "CLAIMED" ? (
               <button className="button secondary" type="button" disabled={busy} onClick={() => cancelRun(run.id)}>إلغاء المهمة</button>
             ) : null}
           </article>
