@@ -29,6 +29,16 @@ function retryDelayMs(attemptCount: number): number {
   return Math.min(5 * 60_000, 30_000 * 2 ** Math.max(0, attemptCount - 1));
 }
 
+async function lockRunGrants(tx: Tx, run: Pick<AgentRun, "grantIds">) {
+  if (run.grantIds.length === 0) return;
+  await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+    SELECT "id" FROM "PermissionGrant"
+    WHERE "id" IN (${Prisma.join(run.grantIds)})
+    ORDER BY "id"
+    FOR UPDATE
+  `);
+}
+
 async function releaseReservations(tx: Tx, run: Pick<AgentRun, "agentId" | "grantIds">) {
   for (const grantId of run.grantIds) {
     const released = await tx.permissionGrant.updateMany({
@@ -245,6 +255,11 @@ export async function failAgentRun(
 ): Promise<"QUEUED" | "FAILED" | "DEAD_LETTER" | null> {
   const now = new Date();
   return prisma.$transaction(async (tx) => {
+    const initial = await tx.agentRun.findFirst({
+      where: { id: runId, workerId, status: "CLAIMED", leaseExpiresAt: { gt: now } },
+    });
+    if (!initial) return null;
+    await lockRunGrants(tx, initial);
     const run = await tx.agentRun.findFirst({
       where: { id: runId, workerId, status: "CLAIMED", leaseExpiresAt: { gt: now } },
     });
@@ -296,6 +311,11 @@ export async function recoverExpiredAgentRunLeases(): Promise<{ requeued: number
 
   for (const item of expired) {
     const result = await prisma.$transaction(async (tx) => {
+      const initial = await tx.agentRun.findFirst({
+        where: { id: item.id, status: "CLAIMED", leaseExpiresAt: { lte: now } },
+      });
+      if (!initial) return null;
+      await lockRunGrants(tx, initial);
       const run = await tx.agentRun.findFirst({
         where: { id: item.id, status: "CLAIMED", leaseExpiresAt: { lte: now } },
       });
