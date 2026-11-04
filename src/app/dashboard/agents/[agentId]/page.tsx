@@ -93,14 +93,12 @@ export default async function AgentDetailPage({
       grant.dataScope.includes("PUBLIC_PROFILE")
     )
     .flatMap((grant) => grant.targetScope.map((target) => ({
+      id: grant.id,
       purpose: grant.purpose,
       target,
       actionScope: grant.actionScope,
       dataScope: grant.dataScope,
-    })))
-    .filter((option, index, all) => all.findIndex((candidate) =>
-      candidate.purpose === option.purpose && candidate.target === option.target
-    ) === index);
+    })));
 
   return (
     <main className="shell">
