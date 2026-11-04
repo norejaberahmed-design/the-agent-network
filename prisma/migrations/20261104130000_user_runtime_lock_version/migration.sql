@@ -1,0 +1,2 @@
+ALTER TABLE "User"
+  ADD COLUMN "runtimeLockVersion" INTEGER NOT NULL DEFAULT 0;

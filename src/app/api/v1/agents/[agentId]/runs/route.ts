@@ -6,6 +6,7 @@ import { isTrustedMutationRequest } from "@/lib/request-security";
 import { prisma } from "@/lib/prisma";
 import { getAgentAccess } from "@/modules/agents/access";
 import { digestAgentRunRequest, createAgentRunSchema } from "@/modules/runtime/run-contract";
+import { lockAgentRuntime, lockGrantRows, lockUserRuntime } from "@/modules/runtime/locks";
 
 export const runtime = "nodejs";
 
@@ -142,8 +143,8 @@ export async function POST(request: Request, context: RouteContext) {
     const created = await prisma.$transaction(async (tx) => {
       // Serialize per-requester and per-agent quota checks without coupling them
       // to row locks used by grant mutation transactions.
-      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`agent-run-user:${session.user.id}`}, 0))`;
-      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`agent-run-agent:${agentId}`}, 0))`;
+      await lockUserRuntime(tx, session.user.id);
+      await lockAgentRuntime(tx, agentId);
 
       const activeAgent = await tx.agent.findFirst({
         where: { id: agentId, status: "ACTIVE" },
@@ -170,12 +171,12 @@ export async function POST(request: Request, context: RouteContext) {
           throw new Error("ACCESS_REVOKED");
         }
       }
+      await lockGrantRows(tx, selectedGrantIds);
       for (const grantId of selectedGrantIds) {
         const currentGrant = await tx.permissionGrant.findFirst({
           where: {
             id: grantId,
             agentId,
-            id: input.grantId,
             purpose: input.purpose,
             targetScope: { has: input.target },
             dataScope: { has: "PUBLIC_PROFILE" },

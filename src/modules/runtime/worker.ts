@@ -5,6 +5,7 @@ import {
   type AgentPlanProvider,
   type AgentPlanningRequest,
 } from "./planner";
+import { lockAgentRuntime, lockGrantRows } from "./locks";
 import {
   mayContainChildSexualAbuse,
   mayContainCredentialOrSecret,
@@ -45,7 +46,8 @@ async function validateLiveAuthorization(
   now: Date,
 ): Promise<AuthorizationSnapshot | null> {
   if (run.grantIds.length === 0 || run.authorizedActions.length === 0 ||
-    !run.providerConsentAt || run.providerConsentVersion !== "ai-processing-v1") return null;
+    !run.providerConsentAt || run.providerConsentVersion !== "ai-processing-v1" ||
+    run.expiresAt <= now) return null;
 
   const agent = await tx.agent.findUnique({
     where: { id: run.agentId },
@@ -126,82 +128,168 @@ async function validateLiveAuthorization(
   };
 }
 
+type ClaimResult =
+  | { kind: "CLAIMED"; run: AgentRun }
+  | { kind: "CANCELLED"; runId: string; reason: string }
+  | { kind: "DEAD_LETTER"; runId: string; code: string };
+
 async function claimNextRun(
   prisma: PrismaClient,
   workerId: string,
   now: Date,
-): Promise<AgentRun | null> {
-  return prisma.$transaction(async (tx) => {
-    const expired = await tx.agentRun.findMany({
-      where: { status: "PLANNING", leaseExpiresAt: { lte: now } },
-      take: 100,
-      orderBy: { leaseExpiresAt: "asc" },
+): Promise<ClaimResult | null> {
+  let lastTerminal: Exclude<ClaimResult, { kind: "CLAIMED" }> | null = null;
+  // Candidate discovery is intentionally unlocked. The per-agent row lock,
+  // followed by deterministic grant row locks and a conditional update, is the
+  // linearization point shared with cancellation, lifecycle and grant revocation.
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    const candidate = await prisma.agentRun.findFirst({
+      where: {
+        OR: [
+          { status: "QUEUED", availableAt: { lte: now } },
+          { status: "PLANNING", leaseExpiresAt: { lte: now } },
+        ],
+      },
+      orderBy: [{ availableAt: "asc" }, { createdAt: "asc" }],
     });
+    if (!candidate) return lastTerminal;
 
-    for (const run of expired.filter((item) => item.attemptCount >= item.maxAttempts)) {
+    const result = await prisma.$transaction(async (tx) => {
+      await lockAgentRuntime(tx, candidate.agentId);
+      let current = await tx.agentRun.findUnique({ where: { id: candidate.id } });
+      if (!current) return null;
+      if (
+        current.status !== "QUEUED" && current.status !== "PLANNING"
+      ) return null;
+      if (
+        (current.status === "QUEUED" && current.availableAt > now) ||
+        (current.status === "PLANNING" && (!current.leaseExpiresAt || current.leaseExpiresAt > now))
+      ) return null;
+
+      await lockGrantRows(tx, current.grantIds);
+      current = await tx.agentRun.findUnique({ where: { id: candidate.id } });
+      if (!current) return null;
+      if (
+        current.status !== "QUEUED" && current.status !== "PLANNING"
+      ) return null;
+      if (
+        (current.status === "QUEUED" && current.availableAt > now) ||
+        (current.status === "PLANNING" && (!current.leaseExpiresAt || current.leaseExpiresAt > now))
+      ) return null;
+
+      if (current.attemptCount >= current.maxAttempts) {
+        const dead = await tx.agentRun.updateMany({
+          where: {
+            id: current.id,
+            status: current.status,
+            attemptCount: current.attemptCount,
+          },
+          data: {
+            status: "DEAD_LETTER",
+            errorCode: "WORKER_LEASE_EXHAUSTED",
+            workerId: null,
+            claimedAt: null,
+            leaseExpiresAt: null,
+            completedAt: now,
+          },
+        });
+        if (dead.count === 1) {
+          await releaseReservations(tx, current);
+          await tx.auditEvent.create({
+            data: {
+              agentId: current.agentId,
+              ownerType: current.ownerType,
+              ownerId: current.ownerId,
+              action: "agent.run.dead_lettered",
+              targetType: "AgentRun",
+              targetId: current.id,
+              outcome: "FAILED",
+              policyVersion: String(current.agentConfigurationVersion),
+              correlationId: randomUUID(),
+              metadata: { reason: "WORKER_LEASE_EXHAUSTED", attemptCount: current.attemptCount },
+            },
+          });
+        }
+        return dead.count === 1
+          ? { kind: "DEAD_LETTER" as const, runId: current.id, code: "WORKER_LEASE_EXHAUSTED" }
+          : null;
+      }
+
+      const authorization = await validateLiveAuthorization(tx, current, now);
+      if (!authorization) {
+        const cancelled = await tx.agentRun.updateMany({
+          where: {
+            id: current.id,
+            status: current.status,
+            attemptCount: current.attemptCount,
+          },
+          data: {
+            status: "CANCELLED",
+            errorCode: "AUTHORIZATION_REVOKED",
+            cancelledAt: now,
+            completedAt: now,
+            workerId: null,
+            claimedAt: null,
+            leaseExpiresAt: null,
+          },
+        });
+        if (cancelled.count === 1) {
+          await releaseReservations(tx, current);
+          await tx.auditEvent.create({
+            data: {
+              agentId: current.agentId,
+              ownerType: current.ownerType,
+              ownerId: current.ownerId,
+              action: "agent.run.cancelled",
+              targetType: "AgentRun",
+              targetId: current.id,
+              outcome: "DENIED",
+              policyVersion: String(current.agentConfigurationVersion),
+              correlationId: randomUUID(),
+              metadata: { reason: "AUTHORIZATION_REVOKED_BEFORE_CLAIM" },
+            },
+          });
+        }
+        return cancelled.count === 1
+          ? { kind: "CANCELLED" as const, runId: current.id, reason: "AUTHORIZATION_REVOKED" }
+          : null;
+      }
+
+      const leaseUntil = new Date(now.getTime() + 90_000);
       const changed = await tx.agentRun.updateMany({
         where: {
-          id: run.id,
+          id: current.id,
+          status: current.status,
+          attemptCount: current.attemptCount,
+          ...(current.status === "QUEUED"
+            ? { availableAt: { lte: now } }
+            : { leaseExpiresAt: { lte: now } }),
+        },
+        data: {
           status: "PLANNING",
-          leaseExpiresAt: { lte: now },
-          attemptCount: run.attemptCount,
-        },
-        data: {
-          status: "DEAD_LETTER",
-          errorCode: "WORKER_LEASE_EXHAUSTED",
-          workerId: null,
-          claimedAt: null,
-          leaseExpiresAt: null,
-          completedAt: now,
+          workerId,
+          claimedAt: now,
+          leaseExpiresAt: leaseUntil,
+          attemptCount: { increment: 1 },
+          startedAt: current.startedAt ?? now,
+          errorCode: null,
         },
       });
-      if (changed.count !== 1) continue;
-      await releaseReservations(tx, run);
-      await tx.auditEvent.create({
-        data: {
-          agentId: run.agentId,
-          ownerType: run.ownerType,
-          ownerId: run.ownerId,
-          action: "agent.run.dead_lettered",
-          targetType: "AgentRun",
-          targetId: run.id,
-          outcome: "FAILED",
-          policyVersion: String(run.agentConfigurationVersion),
-          correlationId: randomUUID(),
-          metadata: { reason: "WORKER_LEASE_EXHAUSTED", attemptCount: run.attemptCount },
-        },
-      });
-    }
+      if (changed.count !== 1) return null;
+      const claimed = await tx.agentRun.findUnique({ where: { id: current.id } });
+      return claimed ? { kind: "CLAIMED" as const, run: claimed } : null;
+    }, {
+      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+      maxWait: 5_000,
+      timeout: 10_000,
+    });
 
-    const leaseUntil = new Date(now.getTime() + 90_000);
-    const sql = [
-      'WITH candidate AS (',
-      '  SELECT "id" FROM "AgentRun"',
-      '  WHERE (("status" = \'QUEUED\' AND "availableAt" <= $1)',
-      '     OR ("status" = \'PLANNING\' AND "leaseExpiresAt" <= $2 AND "attemptCount" < "maxAttempts"))',
-      '  ORDER BY "availableAt" ASC, "createdAt" ASC',
-      '  FOR UPDATE SKIP LOCKED',
-      '  LIMIT 1',
-      ')',
-      'UPDATE "AgentRun" AS run',
-      'SET "status" = \'PLANNING\', "workerId" = $3, "claimedAt" = $4,',
-      '    "leaseExpiresAt" = $5, "attemptCount" = run."attemptCount" + 1,',
-      '    "startedAt" = COALESCE(run."startedAt", $6), "errorCode" = NULL, "updatedAt" = $7',
-      'FROM candidate WHERE run."id" = candidate."id"',
-      'RETURNING run.*',
-    ].join("\n");
-    const claimed = await tx.$queryRawUnsafe<AgentRun[]>(
-      sql,
-      now,
-      now,
-      workerId,
-      now,
-      leaseUntil,
-      now,
-      now,
-    );
-    return claimed[0] ?? null;
-  });
+    if (result?.kind === "CLAIMED") return result;
+    if (result?.kind === "CANCELLED" || result?.kind === "DEAD_LETTER") {
+      lastTerminal = result;
+    }
+  }
+  return lastTerminal;
 }
 
 async function failRun(
@@ -219,8 +307,12 @@ async function failRun(
 
   let updated = false;
   await prisma.$transaction(async (tx) => {
+    await lockAgentRuntime(tx, run.agentId);
+    await lockGrantRows(tx, run.grantIds);
+    const current = await tx.agentRun.findFirst({ where: { id: run.id, status: "PLANNING", workerId } });
+    if (!current) return;
     const changed = await tx.agentRun.updateMany({
-      where: { id: run.id, status: "PLANNING", workerId },
+      where: { id: current.id, status: "PLANNING", workerId },
       data: {
         status: nextStatus,
         errorCode: code,
@@ -234,23 +326,23 @@ async function failRun(
     if (changed.count !== 1) return;
     updated = true;
 
-    if (!shouldRetry) await releaseReservations(tx, run);
+    if (!shouldRetry) await releaseReservations(tx, current);
 
     await tx.auditEvent.create({
       data: {
-        agentId: run.agentId,
-        ownerType: run.ownerType,
-        ownerId: run.ownerId,
+        agentId: current.agentId,
+        ownerType: current.ownerType,
+        ownerId: current.ownerId,
         action: shouldRetry ? "agent.run.retry_scheduled" : "agent.run.failed",
         targetType: "AgentRun",
-        targetId: run.id,
+        targetId: current.id,
         outcome: "FAILED",
-        policyVersion: String(run.agentConfigurationVersion),
+        policyVersion: String(current.agentConfigurationVersion),
         correlationId: randomUUID(),
         metadata: {
           errorCode: code,
-          attemptCount: run.attemptCount,
-          maxAttempts: run.maxAttempts,
+          attemptCount: current.attemptCount,
+          maxAttempts: current.maxAttempts,
           reservationReleased: !shouldRetry,
         },
       },
@@ -269,8 +361,14 @@ async function cancelRunForAuthorizationFailure(
   now: Date,
 ): Promise<AgentWorkerResult> {
   await prisma.$transaction(async (tx) => {
-    const changed = await tx.agentRun.updateMany({
+    await lockAgentRuntime(tx, run.agentId);
+    await lockGrantRows(tx, run.grantIds);
+    const current = await tx.agentRun.findFirst({
       where: { id: run.id, status: "PLANNING", workerId },
+    });
+    if (!current) return;
+    const changed = await tx.agentRun.updateMany({
+      where: { id: current.id, status: "PLANNING", workerId },
       data: {
         status: "CANCELLED",
         errorCode: "AUTHORIZATION_REVOKED",
@@ -282,17 +380,17 @@ async function cancelRunForAuthorizationFailure(
       },
     });
     if (changed.count !== 1) return;
-    await releaseReservations(tx, run);
+    await releaseReservations(tx, current);
     await tx.auditEvent.create({
       data: {
-        agentId: run.agentId,
-        ownerType: run.ownerType,
-        ownerId: run.ownerId,
+        agentId: current.agentId,
+        ownerType: current.ownerType,
+        ownerId: current.ownerId,
         action: "agent.run.cancelled",
         targetType: "AgentRun",
-        targetId: run.id,
+        targetId: current.id,
         outcome: "DENIED",
-        policyVersion: String(run.agentConfigurationVersion),
+        policyVersion: String(current.agentConfigurationVersion),
         correlationId: randomUUID(),
         metadata: { reason: "AUTHORIZATION_REVOKED" },
       },
@@ -321,12 +419,25 @@ export async function runAgentWorkerOnce(args: {
     return { status: "THROTTLED", reason: "DAILY_RUN_LIMIT" };
   }
 
-  const claimed = await claimNextRun(prisma, workerId, now);
-  if (!claimed) return { status: "IDLE" };
+  const claim = await claimNextRun(prisma, workerId, now);
+  if (!claim) return { status: "IDLE" };
+  if (claim.kind === "CANCELLED") {
+    return { status: "CANCELLED", runId: claim.runId, reason: claim.reason };
+  }
+  if (claim.kind === "DEAD_LETTER") {
+    return { status: "DEAD_LETTER", runId: claim.runId, code: claim.code };
+  }
+  const claimed = claim.run;
 
-  const authorization = await prisma.$transaction((tx) =>
-    validateLiveAuthorization(tx, claimed, new Date())
-  );
+  const authorization = await prisma.$transaction(async (tx) => {
+    await lockAgentRuntime(tx, claimed.agentId);
+    await lockGrantRows(tx, claimed.grantIds);
+    const current = await tx.agentRun.findFirst({
+      where: { id: claimed.id, status: "PLANNING", workerId },
+    });
+    if (!current) return null;
+    return validateLiveAuthorization(tx, current, new Date());
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   if (!authorization) {
     return cancelRunForAuthorizationFailure(prisma, claimed, workerId, new Date());
   }
@@ -403,6 +514,8 @@ export async function runAgentWorkerOnce(args: {
   let saved: boolean;
   try {
     saved = await prisma.$transaction(async (tx) => {
+    await lockAgentRuntime(tx, claimed.agentId);
+    await lockGrantRows(tx, claimed.grantIds);
     const current = await tx.agentRun.findFirst({
       where: { id: claimed.id, status: "PLANNING", workerId },
     });

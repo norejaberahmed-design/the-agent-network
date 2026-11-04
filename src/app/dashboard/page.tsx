@@ -21,7 +21,7 @@ export default async function DashboardPage() {
     <main className="shell">
       <header className="topbar">
         <Link className="brand" href="/"><span className="brand-mark">A</span>The Agent Network</Link>
-        <div style={{ display: "flex", gap: 14, alignItems: "center" }}><Link className="muted" href="/dashboard/discover">استكشاف الوكلاء</Link><Link className="muted" href="/dashboard/organizations">مساحات المؤسسات</Link><span className="muted">{session.user.name || session.user.email}</span></div>
+        <div style={{ display: "flex", gap: 14, alignItems: "center" }}><Link className="muted" href="/dashboard/discover">استكشاف الوكلاء</Link><Link className="muted" href="/dashboard/organizations">مساحات المؤسسات</Link><Link className="muted" href="/dashboard/profile">الملف الشخصي</Link><span className="muted">{session.user.name || session.user.email}</span></div>
       </header>
       <section className="hero" style={{ paddingTop: 28 }}>
         <div className="eyebrow">OWNER WORKSPACE</div>

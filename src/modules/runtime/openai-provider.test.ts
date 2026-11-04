@@ -59,6 +59,8 @@ describe("OpenAI Responses provider", () => {
             sources: [
               { url: "https://example.com/supplier", title: "Supplier official site" },
               { url: "javascript:alert(1)", title: "Unsafe URL" },
+              { url: "https://user:pass@example.com/private", title: "Credential URL" },
+              { url: "https://example.com/result?access_token=private&category=tools#secret", title: "Sanitized URL" },
             ],
           },
         },
@@ -78,7 +80,10 @@ describe("OpenAI Responses provider", () => {
     expect(payload.tools).toEqual([{ type: "web_search" }]);
     expect(payload.include).toContain("web_search_call.action.sources");
     expect(result.steps[0].input).toEqual({ query: "supplier official website" });
-    expect(result.sources).toEqual([{ url: "https://example.com/supplier", title: "Supplier official site" }]);
+    expect(result.sources).toEqual([
+      { url: "https://example.com/supplier", title: "Supplier official site" },
+      { url: "https://example.com/result?category=tools", title: "Sanitized URL" },
+    ]);
   });
 
   it("does not enable web search when the server allowlist excludes it", async () => {

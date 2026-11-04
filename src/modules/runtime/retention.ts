@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { PrismaClient } from "@prisma/client";
+import { lockAgentRuntime, lockGrantRows } from "./locks";
 
 export async function purgeExpiredAgentRuns(
   prisma: PrismaClient,
@@ -17,7 +18,11 @@ export async function purgeExpiredAgentRuns(
 
   for (const run of expiredRuns) {
     const result = await prisma.$transaction(async (tx) => {
-      const current = await tx.agentRun.findUnique({ where: { id: run.id } });
+      await lockAgentRuntime(tx, run.agentId);
+      let current = await tx.agentRun.findUnique({ where: { id: run.id } });
+      if (!current || current.expiresAt > now) return { deleted: false, cancelled: false };
+      await lockGrantRows(tx, current.grantIds);
+      current = await tx.agentRun.findUnique({ where: { id: run.id } });
       if (!current || current.expiresAt > now) return { deleted: false, cancelled: false };
 
       let wasCancelled = false;

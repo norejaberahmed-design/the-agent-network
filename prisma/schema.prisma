@@ -82,6 +82,7 @@ model User {
   name          String
   email         String       @unique
   platformRole  String       @default("MEMBER")
+  runtimeLockVersion Int      @default(0)
   emailVerified Boolean      @default(false)
   image         String?
   createdAt     DateTime     @default(now())
@@ -201,6 +202,7 @@ model Agent {
   discoverable      Boolean         @default(false)
   status            AgentStatus     @default(DRAFT)
   configurationVersion Int          @default(1)
+  runtimeLockVersion   Int          @default(0)
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @updatedAt
   userOwner         User?           @relation("UserOwnedAgents", fields: [userOwnerId], references: [id], onDelete: Restrict)

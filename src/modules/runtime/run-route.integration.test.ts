@@ -96,6 +96,14 @@ suite("agent run queue API (PostgreSQL integration)", () => {
         status: "ACTIVE",
       },
     });
+    await prisma.agentCapability.create({
+      data: {
+        agentId: rateAgentId,
+        key: "SEARCH_PUBLIC_WEB",
+        description: "Search public web sources under an owner grant.",
+        languages: ["ar", "en"],
+      },
+    });
     await prisma.permissionGrant.create({
       data: {
         id: rateGrantId,
@@ -242,6 +250,10 @@ suite("agent run queue API (PostgreSQL integration)", () => {
     );
     expect(queued.status).toBe(202);
     const queuedBody = await queued.json();
+    await prisma.agentRun.update({
+      where: { id: queuedBody.data.id },
+      data: { status: "PLANNING", workerId: "grant-revoke-worker", claimedAt: new Date(), leaseExpiresAt: new Date(Date.now() + 60_000) },
+    });
     const revoked = await revokeGrant(request({}), {
       params: Promise.resolve({ agentId, grantId }),
     });

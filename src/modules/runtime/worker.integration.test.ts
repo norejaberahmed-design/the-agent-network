@@ -7,12 +7,13 @@ import { purgeExpiredAgentRuns } from "./retention";
 import type { TextModerator } from "./openai-provider";
 
 const enabled = process.env.RUN_DB_INTEGRATION === "1";
+const originalDailyLimit = process.env.OPENAI_AGENT_MAX_DAILY_RUNS;
 const suite = enabled ? describe : describe.skip;
 const suffix = randomUUID();
 const ownerId = `worker-owner-${suffix}`;
 const agentId = `worker-agent-${suffix}`;
 const grantId = `worker-grant-${suffix}`;
-const originalDailyLimit = process.env.OPENAI_AGENT_MAX_DAILY_RUNS;
+
 
 const plan = {
   summary: "Research public supplier information and present the sources for owner review.",
@@ -108,6 +109,8 @@ suite("agent worker (PostgreSQL integration)", () => {
   });
 
   afterAll(async () => {
+    if (originalDailyLimit === undefined) delete process.env.OPENAI_AGENT_MAX_DAILY_RUNS;
+    else process.env.OPENAI_AGENT_MAX_DAILY_RUNS = originalDailyLimit;
     await prisma.auditEvent.deleteMany({ where: { agentId } });
     await prisma.agentRun.deleteMany({ where: { agentId } });
     await prisma.permissionGrant.deleteMany({ where: { id: grantId } });
