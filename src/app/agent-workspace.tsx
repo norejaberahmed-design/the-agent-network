@@ -6,6 +6,17 @@ import { useEffect, useState } from "react";
 type Mode = "search" | "ad";
 type SearchResult = { title: string; url: string; snippet: string };
 type AgentResponse = { mode: Mode; summary: string; results?: SearchResult[]; draft?: string };
+type PersonalAgent = { id: string; name: string; status: string };
+type PermissionGrant = {
+  id: string; purpose: string; actionScope: string[]; targetScope: string[];
+  dataScope: string[]; expiresAt: string; maxUses: number | null; uses: number; status: string;
+};
+type AgentRun = {
+  id: string; task: string; status: string; planSummary?: string | null;
+  planSources?: Array<{ url: string; title: string }> | null;
+  steps?: Array<{ stepId: string; action: string; description: string; status: string }>;
+  errorCode?: string | null; createdAt: string; completedAt?: string | null;
+};
 
 const starterPrompts = [
   "ابحث عن شركات سعودية تشتري معدات الشبكات بالجملة",
@@ -23,6 +34,14 @@ export default function AgentWorkspace() {
   const [response, setResponse] = useState<AgentResponse | null>(null);
   const [error, setError] = useState("");
   const [profileStorage, setProfileStorage] = useState<"checking" | "account" | "device" | "error">("checking");
+  const [accountState, setAccountState] = useState<"checking" | "guest" | "ready" | "error">("checking");
+  const [agents, setAgents] = useState<PersonalAgent[]>([]);
+  const [agentId, setAgentId] = useState("");
+  const [grants, setGrants] = useState<PermissionGrant[]>([]);
+  const [grantId, setGrantId] = useState("");
+  const [providerConsent, setProviderConsent] = useState(false);
+  const [runtimeRun, setRuntimeRun] = useState<AgentRun | null>(null);
+  const [runtimeLoading, setRuntimeLoading] = useState(false);
 
   useEffect(() => {
     try {
@@ -60,6 +79,72 @@ export default function AgentWorkspace() {
     return () => { active = false; };
   }, []);
 
+  useEffect(() => {
+    let active = true;
+    void fetch("/api/v1/agents", { cache: "no-store" })
+      .then(async response => {
+        if (!active) return;
+        if (response.status === 401) { setAccountState("guest"); return; }
+        const body = await response.json();
+        if (!response.ok) throw new Error(body.error || "تعذر تحميل وكلائك.");
+        const owned = (body.data || []) as PersonalAgent[];
+        if (!active) return;
+        setAgents(owned);
+        setAccountState("ready");
+        const firstActive = owned.find(agent => agent.status === "ACTIVE");
+        if (firstActive) setAgentId(firstActive.id);
+      })
+      .catch(() => { if (active) setAccountState("error"); });
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    if (!agentId) { setGrants([]); setGrantId(""); return; }
+    let active = true;
+    void Promise.all([
+      fetch(`/api/v1/agents/${encodeURIComponent(agentId)}/grants`, { cache: "no-store" }),
+      fetch(`/api/v1/agents/${encodeURIComponent(agentId)}/runs`, { cache: "no-store" }),
+    ]).then(async ([grantResponse, runResponse]) => {
+      if (!active) return;
+      if (grantResponse.status === 401 || runResponse.status === 401) {
+        setAccountState("guest");
+        return;
+      }
+      const grantBody = await grantResponse.json();
+      const runBody = await runResponse.json();
+      if (!grantResponse.ok || !runResponse.ok) throw new Error("تعذر تحميل صلاحيات ومهام الوكيل.");
+      const now = Date.now();
+      const available = ((grantBody.data || []) as PermissionGrant[]).filter(grant =>
+        grant.status === "ACTIVE" && new Date(grant.expiresAt).getTime() > now &&
+        grant.actionScope.includes("SEARCH_PUBLIC_WEB") &&
+        grant.targetScope.includes("PUBLIC_WEB") &&
+        grant.dataScope.includes("PUBLIC_PROFILE") &&
+        (grant.maxUses === null || grant.uses < grant.maxUses)
+      );
+      setGrants(available);
+      setGrantId(current => available.some(grant => grant.id === current) ? current : (available[0]?.id || ""));
+      const runs = (runBody.data || []) as AgentRun[];
+      if (runs[0]) setRuntimeRun(runs[0]);
+    }).catch(() => { if (active) setError("تعذر تحميل بيانات الوكيل. حدّث الصفحة أو افتح مساحة الحساب."); });
+    return () => { active = false; };
+  }, [agentId]);
+
+  useEffect(() => {
+    if (!agentId || !runtimeRun || !["QUEUED", "PLANNING"].includes(runtimeRun.status)) return;
+    let active = true;
+    const refresh = async () => {
+      try {
+        const response = await fetch(`/api/v1/agents/${encodeURIComponent(agentId)}/runs`, { cache: "no-store" });
+        if (!response.ok) return;
+        const body = await response.json();
+        const latest = ((body.data || []) as AgentRun[]).find(run => run.id === runtimeRun.id);
+        if (active && latest) setRuntimeRun(latest);
+      } catch { /* A later refresh can recover transient network errors. */ }
+    };
+    const timer = window.setInterval(() => { void refresh(); }, 10000);
+    return () => { active = false; window.clearInterval(timer); };
+  }, [agentId, runtimeRun?.id, runtimeRun?.status]);
+
   async function saveProfile() {
     setError("");
     try {
@@ -90,18 +175,49 @@ export default function AgentWorkspace() {
     setError("");
     setResponse(null);
     try {
-      const res = await fetch("/api/demo-agent", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode, task: value, profile: { displayName, tone, goal } }),
-      });
-      const body = await res.json();
-      if (!res.ok) throw new Error(body.error || "تعذر تنفيذ الطلب.");
-      setResponse(body as AgentResponse);
+      if (mode === "search") {
+        if (accountState === "guest") throw new Error("سجّل الدخول أولاً لاستخدام الوكيل المرتبط بحسابك.");
+        if (!agentId) throw new Error("لا يوجد وكيل شخصي نشط. افتح مساحة حسابك وأنشئ وفعّل وكيلاً أولاً.");
+        const selectedGrant = grants.find(grant => grant.id === grantId);
+        if (!selectedGrant) throw new Error("لا يوجد تفويض بحث نشط. افتح إعدادات الوكيل وأنشئ تفويضاً محدوداً للبحث في الويب.");
+        if (!providerConsent) throw new Error("وافق أولاً على معالجة نص المهمة بواسطة مزود الذكاء الاصطناعي.");
+        setRuntimeLoading(true);
+        const res = await fetch(`/api/v1/agents/${encodeURIComponent(agentId)}/runs`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            task: value,
+            purpose: selectedGrant.purpose,
+            target: "PUBLIC_WEB",
+            grantId: selectedGrant.id,
+            idempotencyKey: crypto.randomUUID(),
+            providerConsent: true,
+          }),
+        });
+        const body = await res.json();
+        if (!res.ok) {
+          if (res.status === 503) throw new Error("محرك الذكاء الاصطناعي أو العامل المجدول غير مهيأ على الخادم. لم تُرسل المهمة إلى OpenAI ولم تُحتسب تكلفة.");
+          if (res.status === 401) throw new Error("انتهت جلسة الدخول. سجّل الدخول مجدداً.");
+          if (res.status === 403) throw new Error("التفويض غير صالح أو لا يملك الوكيل صلاحية البحث المطلوبة.");
+          throw new Error(body.error || "تعذر إضافة المهمة إلى قائمة الوكيل.");
+        }
+        setRuntimeRun(body.data as AgentRun);
+        setResponse({ mode: "search", summary: "تم تسجيل المهمة في قائمة الوكيل. لم تُنفّذ بعد؛ ستظهر النتيجة عند اكتمال العامل الخلفي." });
+      } else {
+        const res = await fetch("/api/demo-agent", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ mode, task: value, profile: { displayName, tone, goal } }),
+        });
+        const body = await res.json();
+        if (!res.ok) throw new Error(body.error || "تعذر إعداد المسودة.");
+        setResponse(body as AgentResponse);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "حدث خطأ غير متوقع.");
     } finally {
       setBusy(false);
+      setRuntimeLoading(false);
     }
   }
 
@@ -139,19 +255,54 @@ export default function AgentWorkspace() {
               <button className={mode === "ad" ? "selected" : ""} onClick={() => { setMode("ad"); setResponse(null); }}>✧ إعداد إعلان</button>
             </div>
             <textarea value={task} onChange={e => setTask(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void runTask(); } }} placeholder={mode === "search" ? "مثال: ابحث عن موزعي معدات الشبكات في السعودية، واجمع المواقع الرسمية..." : "اكتب تفاصيل المنتج أو الخدمة والجمهور الذي تريد الوصول إليه..."} rows={4} maxLength={1200} />
-            <div className="agent-compose-bottom"><span>النتائج تعتمد على الطلب والمصادر المتاحة · {task.length}/1200</span><button onClick={() => void runTask()} disabled={busy || !task.trim()}>{busy ? "جارٍ العمل..." : "ابدأ المهمة"} <b>←</b></button></div>
+            {mode === "search" && (
+              <div className="agent-runtime-consent">
+                {accountState === "guest" ? <p>البحث عبر الوكيل الشخصي يتطلب تسجيل الدخول.</p> : null}
+                {accountState === "ready" && agents.length === 0 ? <p>لا يوجد وكيل في حسابك بعد. أنشئ وكيلاً من <Link href="/dashboard/agents">مساحة الوكلاء</Link>.</p> : null}
+                {agents.length > 0 && !agentId ? <p>لا يوجد وكيل نشط. فعّل وكيلاً من لوحة التحكم.</p> : null}
+                {agentId && grants.length === 0 ? <p>لا يوجد تفويض بحث نشط لهذا الوكيل. أنشئ تفويضاً محدوداً من صفحة الوكيل.</p> : null}
+                {agents.filter(agent => agent.status === "ACTIVE").length > 1 ? (
+                  <label>الوكيل النشط
+                    <select value={agentId} onChange={event => { setAgentId(event.target.value); setRuntimeRun(null); }}>
+                      {agents.filter(agent => agent.status === "ACTIVE").map(agent => <option key={agent.id} value={agent.id}>{agent.name}</option>)}
+                    </select>
+                  </label>
+                ) : null}
+                {grants.length > 1 ? (
+                  <label>تفويض البحث
+                    <select value={grantId} onChange={event => setGrantId(event.target.value)}>
+                      {grants.map(grant => <option key={grant.id} value={grant.id}>{grant.purpose}</option>)}
+                    </select>
+                  </label>
+                ) : null}
+                <label className="agent-consent-check">
+                  <input type="checkbox" checked={providerConsent} onChange={event => setProviderConsent(event.target.checked)} />
+                  أوافق على إرسال نص المهمة إلى مزود الذكاء الاصطناعي لمعالجتها والبحث في الويب. قد تُحفظ المهمة وخطتها لمدة تصل إلى 30 يوماً وفق إعدادات النظام وسياسة المزود. لن يُنفّذ الوكيل أي إجراء خارجي.
+                </label>
+              </div>
+            )}
+            <div className="agent-compose-bottom"><span>{mode === "search" ? "مهمة محفوظة في حسابك · {task.length}/4000" : `مسودة محلية أولية · ${task.length}/1200`}</span><button onClick={() => void runTask()} disabled={busy || !task.trim()}>{busy ? "جارٍ العمل..." : "ابدأ المهمة"} <b>←</b></button></div>
           </div>
 
           {!response && !busy && <div className="agent-suggestions"><span>جرّب أن تطلب</span>{starterPrompts.map(p => <button key={p} onClick={() => { setMode(p.includes("إعلان") ? "ad" : "search"); setTask(p); }}>{p} <b>↗</b></button>)}</div>}
           {busy && <div className="agent-result-card agent-loading"><span className="agent-spinner" /> أعمل على طلبك الآن...</div>}
           {error && <div className="agent-error" role="alert">{error}</div>}
+          {runtimeRun && mode === "search" && <section className="agent-result-card" aria-live="polite">
+            <div className="agent-result-heading"><span className="agent-overline">حالة مهمة الوكيل</span><span className="agent-result-tag">{runtimeRun.status}</span></div>
+            <h2>{runtimeRun.status === "PLANNED" ? "أعد الوكيل خطة بحث أولية" : runtimeRun.status === "QUEUED" ? "المهمة في قائمة الانتظار" : runtimeRun.status === "PLANNING" ? "العامل يعالج المهمة" : runtimeRun.status === "FAILED" || runtimeRun.status === "DEAD_LETTER" ? "تعذر إكمال المهمة" : runtimeRun.status === "CANCELLED" ? "أُلغيت المهمة" : "حالة المهمة"}</h2>
+            {runtimeRun.planSummary ? <p>{runtimeRun.planSummary}</p> : null}
+            {runtimeRun.steps?.length ? <div className="agent-search-results">{runtimeRun.steps.map((step, index) => <article key={step.stepId}><span>{String(index + 1).padStart(2, "0")}</span><div><strong>{step.action}</strong><p>{step.description}</p><small>{step.status}</small></div></article>)}</div> : null}
+            {runtimeRun.planSources?.length ? <div className="agent-search-results">{runtimeRun.planSources.map(source => <article key={source.url}><span>↗</span><div><a href={source.url} target="_blank" rel="noreferrer">{source.title}</a><small>{new URL(source.url).hostname}</small></div></article>)}</div> : null}
+            {runtimeRun.errorCode ? <p role="status">رمز الحالة: {runtimeRun.errorCode}</p> : null}
+            <p className="agent-disclaimer">هذه خطة مقترحة ومصادر بحث أرجعها مزود الذكاء الاصطناعي؛ لا تعني التحقق المستقل من كل ادعاء، ولا تنفذ إجراءات خارجية.</p>
+          </section>}
           {response && <section className="agent-result-card" aria-live="polite">
             <div className="agent-result-heading"><span className="agent-overline">نتيجة المهمة</span><span className="agent-result-tag">{response.mode === "search" ? "بحث ويب" : "مسودة إعلان"}</span></div>
             <h2>{response.summary}</h2>
             {response.results?.length ? <div className="agent-search-results">{response.results.map((r, i) => <article key={r.url}><span>{String(i + 1).padStart(2, "0")}</span><div><a href={r.url} target="_blank" rel="noreferrer">{r.title} ↗</a><p>{r.snippet}</p><small>{new URL(r.url).hostname}</small></div></article>)}</div> : null}
             {response.results?.length === 0 ? <p>لم أجد نتائج قابلة للاستخراج لهذا الاستعلام. جرّب صياغة أكثر تحديداً.</p> : null}
             {response.draft ? <div className="agent-ad-draft"><pre>{response.draft}</pre><button onClick={() => void navigator.clipboard.writeText(response.draft || "")}>نسخ المسودة</button></div> : null}
-            <p className="agent-disclaimer">تنبيه الشفافية: البحث يجلب نتائج عامة مباشرة. إعداد الإعلان في هذه النسخة قالب أولي، وليس نصاً مولداً بواسطة نموذج OpenAI بعد.</p>
+            {response.mode === "ad" ? <p className="agent-disclaimer">تنبيه الشفافية: هذه مسودة قالب أولية محلية، وليست نصاً مولداً بواسطة نموذج OpenAI.</p> : null}
           </section>}
           <footer className="agent-footer">THE AGENT NETWORK <span>نسخة تجريبية أولية · لا تمثل اعتماداً أو شراكة مع OpenAI</span></footer>
         </section>
