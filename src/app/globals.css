@@ -92,3 +92,16 @@ h2 { margin: 0 0 12px; font-size: 23px; }
 .agent-runtime-consent select{width:100%;padding:9px;border:1px solid #d8e1d8;border-radius:8px;background:#fff;color:#20332a}
 .agent-runtime-consent .agent-consent-check{display:flex;align-items:flex-start;gap:9px;font-weight:500}
 .agent-consent-check input{flex:0 0 auto;margin-top:4px;accent-color:#245b49}
+
+
+.agent-memory-item{margin-top:12px;padding:12px;border:1px solid #e3e9e2;border-radius:10px;background:#fff}
+.agent-memory-item p{margin:0;color:#304238;font-size:12px;line-height:1.8;overflow-wrap:anywhere}
+.agent-memory-item small{display:block;margin-top:7px;color:#89968d;font-size:10px}
+.agent-memory-actions{display:flex;flex-wrap:wrap;gap:7px;margin-top:9px}
+.agent-memory-actions button{border:1px solid #dce5dc;background:#f8faf7;color:#486052;border-radius:7px;padding:6px 9px;font-size:10px}
+.agent-memory-actions button:last-child{color:#99443e}
+.agent-side-section>form{display:grid;gap:10px;margin-top:12px}
+.agent-side-section>h2{margin:9px 0 0;color:#263a30;font-size:15px}
+
+.agent-memory-error{margin-top:12px;padding:10px;border-radius:9px;background:#fff6ee;color:#87542c;font-size:11px;line-height:1.7}
+.agent-memory-item textarea{width:100%;padding:10px;border:1px solid #dce5dc;border-radius:8px;background:#fff;color:#20332a;font:inherit;font-size:12px;line-height:1.7}

@@ -5,6 +5,7 @@ vi.mock("@/modules/runtime/worker", () => ({
 }));
 vi.mock("@/modules/runtime/retention", () => ({
   purgeExpiredAgentRuns: vi.fn(async () => ({ deleted: 0, cancelled: 0 })),
+  purgeExpiredPersonalMemories: vi.fn(async () => ({ deleted: 0 })),
 }));
 
 import { runAgentWorkerOnce } from "@/modules/runtime/worker";

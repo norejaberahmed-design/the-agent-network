@@ -150,7 +150,7 @@ describe("agent planning boundary", () => {
   });
 
   it("passes external source text in a distinct untrusted field", async () => {
-    const generatePlan = vi.fn(async (_input: AgentPlanningRequest) => ({
+    const generatePlan = vi.fn(async () => ({
       summary: "Review source safely.",
       steps: [{ id: "step-1", action: "ASK_OWNER", description: "Ask owner to review.", input: {} }],
     }));
@@ -160,4 +160,51 @@ describe("agent planning boundary", () => {
       untrustedSources: request.untrustedSources,
     }));
   });
+  it("accepts bounded personal memory as context without changing the action allowlist", async () => {
+    const generatePlan = vi.fn(async () => ({
+      summary: "Use the owner's communication preference.",
+      steps: [{ id: "step-1", action: "ASK_OWNER", description: "Ask for missing details.", input: {} }],
+    }));
+    const result = await createAgentPlan({ generatePlan }, {
+      ...request,
+      trustedContext: {
+        ...request.trustedContext,
+        allowedActions: ["ASK_OWNER"],
+        personalMemory: [{
+          kind: "CONFIRMED",
+          content: "The owner prefers concise Arabic responses.",
+          purpose: "Personalize response style",
+          confidence: null,
+          sourceType: "USER_STATEMENT",
+        }],
+      },
+    });
+    expect(result.status).toBe("PLANNED");
+    expect(generatePlan).toHaveBeenCalledWith(expect.objectContaining({
+      trustedContext: expect.objectContaining({
+        personalMemory: [expect.objectContaining({ kind: "CONFIRMED" })],
+        allowedActions: ["ASK_OWNER"],
+      }),
+    }));
+  });
+
+  it("rejects unbounded or oversized personal memory context before provider use", async () => {
+    const generatePlan = vi.fn(async () => ({}));
+    const result = await createAgentPlan({ generatePlan }, {
+      ...request,
+      trustedContext: {
+        ...request.trustedContext,
+        personalMemory: Array.from({ length: 21 }, () => ({
+          kind: "CONFIRMED" as const,
+          content: "A fact",
+          purpose: "Context",
+          confidence: null,
+          sourceType: "USER_STATEMENT",
+        })),
+      },
+    });
+    expect(result).toEqual({ status: "INVALID_PLAN", reason: "SCHEMA_INVALID" });
+    expect(generatePlan).not.toHaveBeenCalled();
+  });
+
 });

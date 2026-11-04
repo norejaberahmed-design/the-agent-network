@@ -76,6 +76,7 @@ export type AgentPlanningRequest = {
     agentPurpose: string;
     allowedActions: AgentPlanAction[];
     persona?: { displayName: string; tone: string; goal: string };
+    personalMemory?: Array<{ kind: "CONFIRMED" | "INFERRED" | "TASK_CONTEXT"; content: string; purpose: string; confidence: number | null; sourceType: string }>;
   };
   /** External pages, documents, and messages are data, never policy instructions. */
   untrustedSources: Array<{
@@ -95,6 +96,13 @@ const agentPlanningRequestSchema = z.object({
       tone: z.string().trim().min(1).max(40),
       goal: z.string().trim().min(1).max(240),
     }).strict().optional(),
+    personalMemory: z.array(z.object({
+      kind: z.enum(["CONFIRMED", "INFERRED", "TASK_CONTEXT"]),
+      content: z.string().min(1).max(2000),
+      purpose: z.string().min(1).max(240),
+      confidence: z.number().min(0).max(1).nullable(),
+      sourceType: z.string().min(1).max(40),
+    }).strict()).max(20).optional(),
     allowedActions: z.array(agentPlanActionSchema).max(4).refine(
       (actions) => new Set(actions).size === actions.length,
       "Allowed actions must be unique",

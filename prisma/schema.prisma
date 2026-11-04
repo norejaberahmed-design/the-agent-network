@@ -36,6 +36,25 @@ enum DataClassification {
   HIGHLY_SENSITIVE
 }
 
+enum PersonalMemoryKind {
+  CONFIRMED
+  INFERRED
+  TASK_CONTEXT
+}
+
+enum PersonalMemorySourceType {
+  USER_STATEMENT
+  USER_CONFIRMED
+  OBSERVED_PATTERN
+  TASK
+}
+
+enum PersonalMemoryStatus {
+  ACTIVE
+  ARCHIVED
+  DELETED
+}
+
 enum GrantStatus {
   ACTIVE
   REVOKED
@@ -97,6 +116,7 @@ model User {
   approvalRequestsDecided ActionApproval[] @relation("ApprovalApprover")
   requestedAgentRuns AgentRun[] @relation("AgentRunRequester")
   persona        UserPersona?
+  personalMemories PersonalMemory[]
 }
 
 model UserPersona {
@@ -105,10 +125,36 @@ model UserPersona {
   displayName String   @db.VarChar(60)
   tone        String   @db.VarChar(40)
   goal        String   @db.VarChar(240)
+  memoryContextEnabled Boolean @default(false)
   version     Int      @default(1)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model PersonalMemory {
+  id               String                   @id @default(cuid())
+  userId           String
+  kind             PersonalMemoryKind
+  content          String                   @db.VarChar(2000)
+  sourceType       PersonalMemorySourceType
+  sourceReference  String?                  @db.VarChar(300)
+  confidence       Float?
+  classification   DataClassification       @default(CONTEXTUAL)
+  purpose          String                   @db.VarChar(240)
+  taskContextRunId String?                  @db.VarChar(64)
+  status           PersonalMemoryStatus     @default(ACTIVE)
+  confirmedAt      DateTime?
+  lastObservedAt   DateTime?
+  expiresAt        DateTime?
+  version          Int                      @default(1)
+  createdAt        DateTime                 @default(now())
+  updatedAt        DateTime                 @updatedAt
+  user             User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status, kind, updatedAt])
+  @@index([userId, expiresAt])
+  @@index([taskContextRunId])
 }
 
 model Session {

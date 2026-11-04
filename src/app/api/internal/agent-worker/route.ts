@@ -3,7 +3,7 @@ import { apiError } from "@/lib/api-response";
 import { prisma } from "@/lib/prisma";
 import { OpenAIResponsesPlanProvider, OpenAITextModerator } from "@/modules/runtime/openai-provider";
 import { runAgentWorkerOnce } from "@/modules/runtime/worker";
-import { purgeExpiredAgentRuns } from "@/modules/runtime/retention";
+import { purgeExpiredAgentRuns, purgeExpiredPersonalMemories } from "@/modules/runtime/retention";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -23,7 +23,10 @@ export async function POST(request: Request) {
   if (!validWorkerSecret(request)) return apiError("UNAUTHENTICATED", 401);
 
   try {
-    const retention = await purgeExpiredAgentRuns(prisma);
+    const [runRetention, memoryRetention] = await Promise.all([
+      purgeExpiredAgentRuns(prisma),
+      purgeExpiredPersonalMemories(prisma),
+    ]);
     const apiKey = process.env.OPENAI_API_KEY;
     const model = process.env.OPENAI_AGENT_MODEL;
     if (!apiKey || !model || process.env.AGENT_WORKER_SCHEDULER_ENABLED !== "true") {
@@ -38,7 +41,7 @@ export async function POST(request: Request) {
     });
     if (result.status === "DISABLED") return apiError("WORKER_DISABLED", 503);
     if (result.status === "THROTTLED") return apiError("WORKER_DAILY_LIMIT", 429);
-    return Response.json({ data: result, retention }, {
+    return Response.json({ data: result, retention: { runs: runRetention, memories: memoryRetention } }, {
       headers: { "Cache-Control": "no-store" },
     });
   } catch {

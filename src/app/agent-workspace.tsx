@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import MemoryManager from "./memory-manager";
 
 type Mode = "search" | "ad";
 type SearchResult = { title: string; url: string; snippet: string };
@@ -28,6 +29,7 @@ export default function AgentWorkspace() {
   const [displayName, setDisplayName] = useState("وكيلك الشخصي");
   const [tone, setTone] = useState("واضح ومباشر");
   const [goal, setGoal] = useState("البحث عن الفرص وبناء دخل حلال");
+  const [memoryContextEnabled, setMemoryContextEnabled] = useState(false);
   const [mode, setMode] = useState<Mode>("search");
   const [task, setTask] = useState("");
   const [busy, setBusy] = useState(false);
@@ -46,10 +48,11 @@ export default function AgentWorkspace() {
     try {
       const saved = localStorage.getItem("tan-agent-profile-v1");
       if (saved) {
-        const profile = JSON.parse(saved) as { displayName?: string; tone?: string; goal?: string };
+        const profile = JSON.parse(saved) as { displayName?: string; tone?: string; goal?: string; memoryContextEnabled?: boolean };
         if (profile.displayName) setDisplayName(profile.displayName);
         if (profile.tone) setTone(profile.tone);
         if (profile.goal) setGoal(profile.goal);
+        if (typeof profile.memoryContextEnabled === "boolean") setMemoryContextEnabled(profile.memoryContextEnabled);
       }
     } catch { /* Ignore invalid local profile data. */ }
 
@@ -71,6 +74,9 @@ export default function AgentWorkspace() {
           setDisplayName(body.data.displayName);
           setTone(body.data.tone);
           setGoal(body.data.goal);
+          setMemoryContextEnabled(Boolean(body.data.memoryContextEnabled));
+        } else {
+          setMemoryContextEnabled(false);
         }
         setProfileStorage("account");
       })
@@ -150,10 +156,10 @@ export default function AgentWorkspace() {
       const response = await fetch("/api/v1/me/persona", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ displayName, tone, goal }),
+        body: JSON.stringify({ displayName, tone, goal, memoryContextEnabled }),
       });
       if (response.status === 401) {
-        localStorage.setItem("tan-agent-profile-v1", JSON.stringify({ displayName, tone, goal }));
+        localStorage.setItem("tan-agent-profile-v1", JSON.stringify({ displayName, tone, goal, memoryContextEnabled }));
         setProfileStorage("device");
         return;
       }
@@ -162,6 +168,7 @@ export default function AgentWorkspace() {
       setDisplayName(body.data.displayName);
       setTone(body.data.tone);
       setGoal(body.data.goal);
+      setMemoryContextEnabled(Boolean(body.data.memoryContextEnabled));
       setProfileStorage("account");
     } catch (e) {
       setError(e instanceof Error ? e.message : "تعذر حفظ الهوية.");
@@ -233,9 +240,14 @@ export default function AgentWorkspace() {
             <label>اسم الوكيل<input value={displayName} onChange={e => setDisplayName(e.target.value)} maxLength={60} /></label>
             <label>أسلوب التواصل<select value={tone} onChange={e => setTone(e.target.value)}><option>واضح ومباشر</option><option>رسمي واحترافي</option><option>ودود ومقنع</option><option>تحليلي ودقيق</option></select></label>
             <label>هدفك الأساسي<textarea value={goal} onChange={e => setGoal(e.target.value)} rows={3} maxLength={240} /></label>
+            <label className="agent-consent-check">
+              <input type="checkbox" checked={memoryContextEnabled} onChange={e => setMemoryContextEnabled(e.target.checked)} />
+              أسمح للوكيل باستخدام ذاكرتي الشخصية المؤكدة والاستنتاجات عالية الثقة عند إرسال المهام إلى مزود الذكاء الاصطناعي. لا تُرسل المعلومات الخاصة أو شديدة الحساسية، ويمكنني إيقاف ذلك في أي وقت.
+            </label>
             <button className="agent-save" onClick={() => void saveProfile()} disabled={profileStorage === "checking"}>{profileStorage === "account" ? "حفظ الهوية في حسابك" : "حفظ الهوية"}</button>
             <small className="agent-local-note">{profileStorage === "account" ? "هويتك محفوظة في حسابك ويمكن استعادتها بعد تسجيل الدخول من جهاز آخر." : profileStorage === "device" ? "أنت تستخدم الوضع التجريبي؛ تُحفظ الهوية على هذا الجهاز فقط. سجّل الدخول لحفظها في حسابك." : profileStorage === "error" ? "تعذر التحقق من الحفظ السحابي. لن أدّعي أن الهوية حُفظت في حسابك." : "جارٍ التحقق من مكان حفظ هويتك..."}</small>
           </div>
+          <MemoryManager />
           <div className="agent-side-note"><strong>أنت صاحب القرار</strong><p>هذه النسخة لا ترسل رسائل ولا تنفذ عمليات شراء أو تعاقد. ستبقى أي خطوة خارجية بحاجة إلى موافقتك.</p></div>
         </aside>
 

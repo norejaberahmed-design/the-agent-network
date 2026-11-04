@@ -135,9 +135,42 @@ suite("agent worker (PostgreSQL integration)", () => {
         displayName: "وكيل جابر",
         tone: "واضح ومباشر",
         goal: "البحث عن الموردين الموثوقين",
+        memoryContextEnabled: true,
       },
     });
     const run = await createRun({ idempotencyKey: `worker-success-${suffix}` });
+    await prisma.personalMemory.createMany({
+      data: [
+        {
+          userId: ownerId, kind: "CONFIRMED", content: "Owner prefers concise Arabic summaries.",
+          sourceType: "USER_STATEMENT", purpose: "Response personalization", classification: "CONTEXTUAL",
+          confirmedAt: new Date(),
+        },
+        {
+          userId: ownerId, kind: "INFERRED", content: "Owner may prefer short messages.",
+          sourceType: "OBSERVED_PATTERN", purpose: "Response personalization", classification: "CONTEXTUAL",
+          confidence: 0.79, expiresAt: new Date(Date.now() + 86_400_000),
+        },
+        {
+          userId: ownerId, kind: "INFERRED", content: "Owner frequently requests source links.",
+          sourceType: "OBSERVED_PATTERN", purpose: "Research presentation", classification: "PUBLIC",
+          confidence: 0.91, expiresAt: new Date(Date.now() + 86_400_000),
+        },
+        {
+          userId: ownerId, kind: "CONFIRMED", content: "Private owner detail.",
+          sourceType: "USER_STATEMENT", purpose: "Private", classification: "PRIVATE", confirmedAt: new Date(),
+        },
+        {
+          userId: ownerId, kind: "CONFIRMED", content: "Highly sensitive detail.",
+          sourceType: "USER_STATEMENT", purpose: "Sensitive", classification: "HIGHLY_SENSITIVE", confirmedAt: new Date(),
+        },
+        {
+          userId: ownerId, kind: "TASK_CONTEXT", content: "This run is about supplier research.",
+          sourceType: "TASK", purpose: "Current task", classification: "CONTEXTUAL",
+          taskContextRunId: run.id, expiresAt: new Date(Date.now() + 3_600_000),
+        },
+      ],
+    });
     const provider = successfulProvider();
     const moderator = successfulModerator();
 
@@ -148,8 +181,17 @@ suite("agent worker (PostgreSQL integration)", () => {
     expect(provider.generatePlan).toHaveBeenCalledWith(expect.objectContaining({
       trustedContext: expect.objectContaining({
         persona: { displayName: "وكيل جابر", tone: "واضح ومباشر", goal: "البحث عن الموردين الموثوقين" },
+        personalMemory: expect.arrayContaining([
+          expect.objectContaining({ kind: "CONFIRMED", content: "Owner prefers concise Arabic summaries." }),
+          expect.objectContaining({ kind: "INFERRED", content: "Owner frequently requests source links." }),
+          expect.objectContaining({ kind: "TASK_CONTEXT", content: "This run is about supplier research." }),
+        ]),
       }),
     }));
+    const submittedContext = vi.mocked(provider.generatePlan).mock.calls[0][0].trustedContext.personalMemory || [];
+    expect(submittedContext.map((item) => item.content)).not.toContain("Owner may prefer short messages.");
+    expect(submittedContext.map((item) => item.content)).not.toContain("Private owner detail.");
+    expect(submittedContext.map((item) => item.content)).not.toContain("Highly sensitive detail.");
     expect(moderator.moderate).toHaveBeenCalledTimes(2);
 
     const saved = await prisma.agentRun.findUniqueOrThrow({
@@ -177,6 +219,35 @@ suite("agent worker (PostgreSQL integration)", () => {
     const grant = await prisma.permissionGrant.findUniqueOrThrow({ where: { id: grantId } });
     expect(grant.reservedUses).toBe(0);
     expect(grant.uses).toBe(1);
+  });
+
+
+  it("does not send personal memory to the AI provider unless the owner opted in", async () => {
+    await prisma.userPersona.upsert({
+      where: { userId: ownerId },
+      create: {
+        userId: ownerId, displayName: "Owner", tone: "واضح ومباشر",
+        goal: "Research", memoryContextEnabled: false,
+      },
+      update: { memoryContextEnabled: false },
+    });
+    await prisma.personalMemory.create({
+      data: {
+        userId: ownerId, kind: "CONFIRMED", content: "Do not share this without opt-in.",
+        sourceType: "USER_STATEMENT", purpose: "Private preference",
+        classification: "CONTEXTUAL", confirmedAt: new Date(),
+      },
+    });
+    const run = await createRun({ idempotencyKey: `worker-memory-opt-out-${suffix}` });
+    const provider = successfulProvider();
+
+    await runAgentWorkerOnce({ prisma, provider, moderator: successfulModerator(), workerId: "worker-memory-opt-out" });
+
+    const submitted = vi.mocked(provider.generatePlan).mock.calls[0][0].trustedContext;
+    expect(submitted.personalMemory).toBeUndefined();
+    expect(JSON.stringify(submitted)).not.toContain("Do not share this without opt-in.");
+    const saved = await prisma.agentRun.findUniqueOrThrow({ where: { id: run.id } });
+    expect(saved.status).toBe("PLANNED");
   });
 
   it("releases the reservation and blocks before moderation for suspected child sexual abuse content", async () => {
