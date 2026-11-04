@@ -20,7 +20,7 @@ export default function MemoryManager() {
   const [content, setContent] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState("");\n  const [editingId, setEditingId] = useState<string | null>(null);\n  const [editingContent, setEditingContent] = useState("");
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -66,7 +66,7 @@ export default function MemoryManager() {
     }
   }
 
-  async function updateMemory(id: string, action: "confirm" | "archive" | "delete") {
+  async function updateMemory(id: string, action: "confirm" | "archive" | "delete" | "save") {
     setError("");
     try {
       const response = action === "delete"
@@ -74,7 +74,7 @@ export default function MemoryManager() {
         : await fetch(`/api/v1/me/memories/${encodeURIComponent(id)}`, {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(action === "confirm" ? { confirm: true } : { status: "ARCHIVED" }),
+            body: JSON.stringify(action === "confirm" ? { confirm: true } : action === "save" ? { content: editingContent } : { status: "ARCHIVED" }),
           });
       const body = await response.json();
       if (!response.ok) throw new Error(body.error || "تعذر تحديث الذاكرة.");
@@ -101,10 +101,20 @@ export default function MemoryManager() {
       {loading ? <small>جارٍ تحميل الذاكرة...</small> : null}
       {memories.map(memory => (
         <article key={memory.id} className="agent-memory-item">
-          <p>{memory.content}</p>
-          <small>{memory.kind === "CONFIRMED" ? "معلومة مؤكدة" : memory.kind === "INFERRED" ? `استنتاج · ثقة ${Math.round((memory.confidence || 0) * 100)}٪` : "سياق مؤقت"}</small>
+          {editingId === memory.id ? (
+            <>
+              <textarea value={editingContent} onChange={event => setEditingContent(event.target.value)} rows={3} maxLength={2000} />
+              <div className="agent-memory-actions">
+                <button type="button" disabled={editingContent.trim().length < 2} onClick={() => void updateMemory(memory.id, "save")}>حفظ التصحيح</button>
+                <button type="button" onClick={() => setEditingId(null)}>إلغاء</button>
+              </div>
+            </>
+          ) : <p>{memory.content}</p>}
+          <small>{memory.kind === "CONFIRMED" ? "معلومة مؤكدة منك" : memory.kind === "INFERRED" ? `استنتاج · ثقة ${Math.round((memory.confidence || 0) * 100)}٪` : "سياق مؤقت"}</small>
+          {memory.sourceReference ? <small>المصدر: {memory.sourceReference}</small> : null}
           <div className="agent-memory-actions">
             {memory.kind === "INFERRED" ? <button type="button" onClick={() => void updateMemory(memory.id, "confirm")}>أؤكد المعلومة</button> : null}
+            {editingId !== memory.id ? <button type="button" onClick={() => { setEditingId(memory.id); setEditingContent(memory.content); }}>تصحيح</button> : null}
             <button type="button" onClick={() => void updateMemory(memory.id, "archive")}>أرشفة</button>
             <button type="button" onClick={() => void updateMemory(memory.id, "delete")}>حذف</button>
           </div>
