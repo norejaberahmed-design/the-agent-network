@@ -25,7 +25,7 @@ This repository is the engineering and product source of truth. Requirements, se
 - Invitation-based global alpha, followed by controlled expansion and eventual public registration.
 - Arabic and English from the beginning.
 - Responsive web experience for mobile and desktop.
-- Owner-authorized discovery and communication; approval required for consequential actions.
+- **Delegated Agent autonomy:** the agent can research, prepare, and execute narrowly delegated actions; consequential actions require fresh, exact-payload owner approval.
 - Owner-controlled field-level disclosure.
 - Tiered, scope-specific verification.
 - Hybrid discovery registry.
@@ -46,6 +46,7 @@ This repository is the engineering and product source of truth. Requirements, se
 - `docs/10-implementation-baseline.md` — initial implementation choices and first vertical slice.
 - `docs/11-initial-data-model.md` — initial relational model and integrity requirements.
 - `docs/12-api-contracts-v1.md` — first API contracts and activation status.
+- `docs/10-delegated-agent-operating-model.md` — approved autonomy model, execution architecture, requirements, risk tiers, and test/acceptance matrix.
 - `docs/ar/overview.md` — Arabic project overview.
 
 ## Implementation status
@@ -68,7 +69,7 @@ The `build/platform-foundation-v1` branch contains an initial application founda
 - Proposed stacked changes add a digest-bound human approval record with independent organization approval; approvals do not execute actions.
 - Unit tests, PostgreSQL integration tests, browser smoke tests, and a CI workflow definition.
 
-**This is an early functional foundation, not a completed or production-ready network.** Enforcement across every outbound data boundary, action execution and approval consumption, external discovery providers, evidence, messaging, external A2A/MCP integrations, regional deployment, rate limiting, and production security controls remain to be built and tested. The interface is Arabic-first; full English localization is not complete.
+**This is an early functional foundation, not a completed or production-ready network.** The current planning worker proposes plans and does not execute external side effects. General personal memory, live OAuth connectors, deterministic side-effect execution, approval-to-execution enforcement, external A2A/MCP integrations, regional deployment, and production security controls remain to be built and tested. The interface is Arabic-first; full English localization is not complete.
 
 No production deployment, security certification, legal compliance assessment, customer commitment, market demand, funding, or partnership is claimed. A code file is not considered complete until it is installed, typechecked, tested, and exercised against a real database.
 

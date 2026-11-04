@@ -1,7 +1,7 @@
 # Open Decisions & Architecture Decision Register
 
 - Document ID: TAN-ADR-REGISTER-001
-- Version: 1.0.0
+- Version: 1.1.0
 - Status: Active register
 
 ## 1. Decision governance
@@ -24,14 +24,20 @@ Statuses:
 | PD-003 | Invitation-based global alpha first | Approved | Controlled expansion before public registration |
 | PD-004 | Arabic and English from the beginning | Approved | RTL/LTR are first-class |
 | PD-005 | Responsive web client | Approved | Mobile and desktop |
-| PD-006 | Owner-authorized autonomy | Approved | Discovery/communication within grants; consequential action approval |
+| PD-006 | Delegated Agent autonomy | Approved | Research/prepare and execute only narrow, live grants; fresh exact-payload approval for consequential actions; no unrestricted autonomy |
 | PD-007 | Owner-controlled field disclosure | Approved | Field-level policy |
 | PD-008 | Tiered verification | Approved | Scope-specific, not universal trust |
 | PD-009 | Regional data residency approach | Approved direction | Exact regions/providers open |
 | PD-010 | Hybrid registry | Approved | Minimal central index plus external/regional registries |
 | PD-011 | Owner retention policy within law | Approved direction | Per-category schedules still required |
 
-## 3. Proposed architecture decisions
+## 3. Approved architecture decision records
+
+| ID | Decision | Status | Record |
+|---|---|---|---|
+| ADR-DA-001 | Delegated Agent operating model, autonomy boundaries, execution gateway, memory governance, risk tiers, connector controls, and acceptance strategy | Approved product direction; implementation specification | `docs/10-delegated-agent-operating-model.md` |
+
+## 4. Proposed architecture decisions
 
 | ID | Proposal | Status | Validation needed |
 |---|---|---|---|
@@ -44,7 +50,7 @@ Statuses:
 | AD-007 | A2A/MCP/OAuth-OIDC/OpenAPI/JSON Schema where appropriate | Proposed | Version and conformance review |
 | AD-008 | Append-only audit event model | Proposed | Tamper evidence, retention, cost |
 
-## 4. Open decisions requiring owner/evidence
+## 5. Open decisions requiring owner/evidence
 
 | ID | Question | Why it matters | Required evidence/approval |
 |---|---|---|---|
@@ -59,11 +65,11 @@ Statuses:
 | OD-009 | What are pilot scale and support commitments? | Reliability and cost | Validated capacity and budget |
 | OD-010 | What pricing and business model fit the beachhead? | Sustainability | Willingness-to-pay and unit economics |
 | OD-011 | What IP license and contribution policy apply? | Investment/acquisition diligence | Owner decision and legal review |
-| OD-012 | What are uptime, latency, RTO, and RPO targets? | Architecture and operations | Workload and business-impact analysis |
+| OD-012 | What are uptime, latency, RTO, and RPO targets? | Architecture and business impact | Workload and business-impact analysis |
 | OD-013 | Which actions are permanently prohibited vs approval-gated? | User safety and liability | Risk appetite and legal review |
 | OD-014 | What is the dispute, appeal, and reputation correction process? | Trust and fairness | Governance design and user research |
 
-## 5. Mandatory ADR template
+## 6. Mandatory ADR template
 
 For each material decision:
 
@@ -81,6 +87,6 @@ For each material decision:
 - Evidence and sources
 - Review trigger / revisit date
 
-## 6. Change discipline
+## 7. Change discipline
 
 Approved product direction must not be changed implicitly in implementation. Any proposed change must identify the affected requirements, users, data, APIs, contracts, migrations, security posture, and commercial assumptions. If a decision must change due to new evidence, law, or technology, document the reason and migration path rather than preserving a known-bad decision merely to avoid change.
