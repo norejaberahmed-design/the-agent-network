@@ -170,7 +170,7 @@ suite("agent run queue API (PostgreSQL integration)", () => {
     );
     expect(queued.status).toBe(202);
     const queuedBody = await queued.json();
-    const claimed = await claimNextAgentRun("grant-revoke-worker");
+    const claimed = await claimNextAgentRun("grant-revoke-worker", { agentId });
     expect(claimed).toMatchObject({ id: queuedBody.data.id, status: "CLAIMED" });
     const revoked = await revokeGrant(request({}), {
       params: Promise.resolve({ agentId, grantId }),
