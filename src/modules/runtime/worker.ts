@@ -1,9 +1,8 @@
 import { randomUUID } from "node:crypto";
-import { Prisma, type AgentRun, type PrismaClient } from "@prisma/client";
+import { Prisma, type AgentRun } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
 type Tx = Prisma.TransactionClient;
-type WorkerDatabase = PrismaClient | Tx;
 
 export type ClaimedAgentRun = Pick<
   AgentRun,
