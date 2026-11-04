@@ -8,6 +8,7 @@ type Memory = {
   kind: "CONFIRMED" | "INFERRED" | "TASK_CONTEXT";
   content: string;
   purpose: string;
+  sourceReference: string | null;
   confidence: number | null;
   classification: string;
   sourceType: string;
@@ -20,7 +21,9 @@ export default function MemoryManager() {
   const [content, setContent] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");\n  const [editingId, setEditingId] = useState<string | null>(null);\n  const [editingContent, setEditingContent] = useState("");
+  const [error, setError] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingContent, setEditingContent] = useState("");
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -78,6 +81,8 @@ export default function MemoryManager() {
           });
       const body = await response.json();
       if (!response.ok) throw new Error(body.error || "تعذر تحديث الذاكرة.");
+      setEditingId(null);
+      setEditingContent("");
       await refresh();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "تعذر تحديث الذاكرة.");
