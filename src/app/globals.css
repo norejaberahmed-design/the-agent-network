@@ -51,7 +51,7 @@ h2 { margin: 0 0 12px; font-size: 23px; }
 .agent-topbar{height:76px;max-width:1400px;margin:auto;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #e0e6df}
 .agent-brand{display:flex;align-items:center;gap:11px;font-weight:800}.agent-brand small{display:block;color:#718078;font-size:11px;font-weight:500;margin-top:3px}
 .agent-mark{display:grid;place-items:center;width:38px;height:38px;border-radius:12px;background:#245b49;color:#fff;font-size:20px}
-.agent-status{font-size:12px;color:#52665b}.agent-layout{max-width:1400px;margin:26px auto;display:grid;grid-template-columns:290px minmax(0,1fr);gap:24px;align-items:start}
+.agent-header-actions{display:flex;align-items:center;gap:16px}.agent-login{font-size:12px;font-weight:700;color:#245b49;padding:9px 12px;border:1px solid #d6e2d8;border-radius:9px}.agent-status{font-size:12px;color:#52665b}.agent-layout{max-width:1400px;margin:26px auto;display:grid;grid-template-columns:290px minmax(0,1fr);gap:24px;align-items:start}
 .agent-sidebar{background:#fff;border:1px solid #e0e6df;border-radius:18px;padding:20px;position:sticky;top:18px}
 .agent-profile-head{display:flex;align-items:center;gap:12px;padding-bottom:18px;border-bottom:1px solid #edf0eb}.agent-avatar{width:42px;height:42px;border-radius:14px;background:#edf3ee;color:#245b49;display:grid;place-items:center}
 .agent-profile-head strong,.agent-profile-head small{display:block}.agent-profile-head small{font-size:11px;color:#7a8880;margin-top:4px}
