@@ -6,6 +6,7 @@ import { apiError } from "@/lib/api-response";
 import { isTrustedMutationRequest } from "@/lib/request-security";
 import { prisma } from "@/lib/prisma";
 import { projectAgentDisclosure, type AgentDisclosurePolicy } from "@/modules/agents/field-disclosure";
+import { lockAgentRuntime, lockGrantRows } from "@/modules/runtime/locks";
 
 export const runtime = "nodejs";
 
@@ -39,6 +40,7 @@ export async function PATCH(request: Request, context: RouteContext) {
 
   const { agentId } = await context.params;
   const result = await prisma.$transaction(async (tx) => {
+    await lockAgentRuntime(tx, agentId);
     const agent = await tx.agent.findUnique({
       where: { id: agentId },
       select: {
@@ -149,6 +151,50 @@ export async function PATCH(request: Request, context: RouteContext) {
     if (updated.count !== 1) return { state: "CONFLICT" as const };
 
     const correlationId = randomUUID();
+    if (parsed.data.status !== "ACTIVE") {
+      const runs = await tx.agentRun.findMany({
+        where: { agentId, status: { in: ["QUEUED", "PLANNING"] } },
+        select: { id: true, grantIds: true },
+      });
+      await lockGrantRows(tx, runs.flatMap((run) => run.grantIds));
+      for (const run of runs) {
+        const cancelled = await tx.agentRun.updateMany({
+          where: { id: run.id, agentId, status: { in: ["QUEUED", "PLANNING"] } },
+          data: {
+            status: "CANCELLED",
+            cancelledAt: new Date(),
+            completedAt: new Date(),
+            errorCode: "AGENT_NOT_ACTIVE",
+            workerId: null,
+            claimedAt: null,
+            leaseExpiresAt: null,
+          },
+        });
+        if (cancelled.count !== 1) continue;
+        for (const grantId of run.grantIds) {
+          const released = await tx.permissionGrant.updateMany({
+            where: { id: grantId, agentId, reservedUses: { gt: 0 } },
+            data: { reservedUses: { decrement: 1 } },
+          });
+          if (released.count !== 1) throw new Error("GRANT_RESERVATION_MISSING");
+        }
+        await tx.auditEvent.create({
+          data: {
+            actorUserId: session.user.id,
+            agentId,
+            ownerType: agent.ownerType,
+            ownerId,
+            action: "agent.run.cancelled",
+            targetType: "AgentRun",
+            targetId: run.id,
+            outcome: "COMPLETED",
+            policyVersion: String(agent.configurationVersion + 1),
+            correlationId,
+            metadata: { reason: "AGENT_NOT_ACTIVE", releasedGrantReservations: run.grantIds.length },
+          },
+        });
+      }
+    }
     await tx.auditEvent.create({
       data: {
         actorUserId: session.user.id,
