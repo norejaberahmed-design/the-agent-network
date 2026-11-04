@@ -6,6 +6,7 @@ import {
   type AgentPlanningRequest,
 } from "./planner";
 import { lockAgentRuntime, lockGrantRows } from "./locks";
+import { selectPersonalContext } from "@/modules/memory/context";
 import {
   mayContainChildSexualAbuse,
   mayContainCredentialOrSecret,
@@ -28,7 +29,8 @@ type AuthorizationSnapshot = {
   agentPurpose: string;
   allowedActions: AgentPlanningRequest["trustedContext"]["allowedActions"];
   configurationVersion: number;
-  persona?: { displayName: string; tone: string; goal: string };
+  persona?: { displayName: string; tone: string; goal: string; memoryContextEnabled: boolean };
+  personalMemory?: NonNullable<AgentPlanningRequest["trustedContext"]["personalMemory"]>;
 };
 
 async function releaseReservations(tx: Tx, run: Pick<AgentRun, "agentId" | "grantIds">) {
@@ -124,16 +126,54 @@ async function validateLiveAuthorization(
   const persona = run.ownerType === "USER"
     ? await tx.userPersona.findUnique({
         where: { userId: run.requesterUserId },
-        select: { displayName: true, tone: true, goal: true },
+        select: { displayName: true, tone: true, goal: true, memoryContextEnabled: true },
       })
     : null;
+
+  const memoryRows = persona?.memoryContextEnabled
+    ? await tx.personalMemory.findMany({
+        where: {
+          userId: run.requesterUserId,
+          status: "ACTIVE",
+          classification: { in: ["PUBLIC", "CONTEXTUAL"] },
+          OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+        },
+        select: {
+          id: true,
+          kind: true,
+          content: true,
+          purpose: true,
+          classification: true,
+          confidence: true,
+          sourceType: true,
+          sourceReference: true,
+          expiresAt: true,
+          taskContextRunId: true,
+          status: true,
+        },
+        orderBy: { updatedAt: "desc" },
+        take: 50,
+      })
+    : [];
+  const personalMemory = selectPersonalContext(memoryRows, {
+    now,
+    runId: run.id,
+    maxItems: 20,
+  }).map((memory) => ({
+    kind: memory.kind,
+    content: memory.content,
+    purpose: memory.purpose,
+    confidence: memory.confidence,
+    sourceType: memory.sourceType,
+  }));
 
   return {
     agentName: agent.name,
     agentPurpose: agent.purpose,
     allowedActions: [...allowedActions, "ASK_OWNER"],
     configurationVersion: agent.configurationVersion,
-    ...(persona ? { persona } : {}),
+    ...(persona ? { persona: { displayName: persona.displayName, tone: persona.tone, goal: persona.goal } } : {}),
+    ...(personalMemory.length > 0 ? { personalMemory } : {}),
   };
 }
 
@@ -475,6 +515,7 @@ export async function runAgentWorkerOnce(args: {
       agentPurpose: authorization.agentPurpose,
       allowedActions: authorization.allowedActions,
       ...(authorization.persona ? { persona: authorization.persona } : {}),
+      ...(authorization.personalMemory ? { personalMemory: authorization.personalMemory } : {}),
     },
     untrustedSources: [],
     safetyIdentifier: safetyIdentifierForUser(claimed.requesterUserId),
