@@ -1,4 +1,5 @@
-import { randomUUID } from "node:crypto";\nimport type { Prisma } from "@prisma/client";
+import { randomUUID } from "node:crypto";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
 type InferredMemoryInput = {
@@ -11,7 +12,10 @@ type InferredMemoryInput = {
 };
 
 export async function createInferredMemory(input: InferredMemoryInput) {
-  if (input.content.trim().length < 2 || input.purpose.trim().length < 3 || !input.sourceReference.trim()) {\n    throw new Error("INVALID_MEMORY_INPUT");\n  }\n  if (!Number.isFinite(input.confidence) || input.confidence < 0.01 || input.confidence > 0.99) {
+  if (input.content.trim().length < 2 || input.purpose.trim().length < 3 || !input.sourceReference.trim()) {
+    throw new Error("INVALID_MEMORY_INPUT");
+  }
+  if (!Number.isFinite(input.confidence) || input.confidence < 0.01 || input.confidence > 0.99) {
     throw new Error("INVALID_MEMORY_CONFIDENCE");
   }
   if (input.expiresAt <= new Date()) throw new Error("INVALID_MEMORY_EXPIRY");
