@@ -1,4 +1,4 @@
-import type { Prisma } from "@prisma/client";
+import { randomUUID } from "node:crypto";\nimport type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
 type InferredMemoryInput = {
@@ -16,18 +16,34 @@ export async function createInferredMemory(input: InferredMemoryInput) {
   }
   if (input.expiresAt <= new Date()) throw new Error("INVALID_MEMORY_EXPIRY");
 
-  return prisma.personalMemory.create({
-    data: {
-      userId: input.userId,
-      kind: "INFERRED",
-      content: input.content.trim().slice(0, 2000),
-      sourceType: "OBSERVED_PATTERN",
-      sourceReference: input.sourceReference.slice(0, 300),
-      confidence: input.confidence,
-      classification: "CONTEXTUAL",
-      purpose: input.purpose.slice(0, 240),
-      lastObservedAt: new Date(),
-      expiresAt: input.expiresAt,
-    } satisfies Prisma.PersonalMemoryUncheckedCreateInput,
+  const correlationId = randomUUID();
+  return prisma.$transaction(async (tx) => {
+    const memory = await tx.personalMemory.create({
+      data: {
+        userId: input.userId,
+        kind: "INFERRED",
+        content: input.content.trim().slice(0, 2000),
+        sourceType: "OBSERVED_PATTERN",
+        sourceReference: input.sourceReference.slice(0, 300),
+        confidence: input.confidence,
+        classification: "CONTEXTUAL",
+        purpose: input.purpose.slice(0, 240),
+        lastObservedAt: new Date(),
+        expiresAt: input.expiresAt,
+      } satisfies Prisma.PersonalMemoryUncheckedCreateInput,
+    });
+    await tx.auditEvent.create({
+      data: {
+        ownerType: "USER",
+        ownerId: input.userId,
+        action: "personal_memory.inferred",
+        targetType: "PersonalMemory",
+        targetId: memory.id,
+        outcome: "COMPLETED",
+        correlationId,
+        metadata: { kind: memory.kind, confidenceBand: memory.confidence !== null && memory.confidence >= 0.8 ? "HIGH" : "LOW" },
+      },
+    });
+    return memory;
   });
 }
