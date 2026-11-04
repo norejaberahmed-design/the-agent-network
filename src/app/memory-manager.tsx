@@ -1,6 +1,7 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import type { FormEvent } from "react";
 
 type Memory = {
   id: string;
@@ -21,7 +22,7 @@ export default function MemoryManager() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
-  async function refresh() {
+  const refresh = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
@@ -34,9 +35,9 @@ export default function MemoryManager() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
-  useEffect(() => { void refresh(); }, []);
+  useEffect(() => { void refresh(); }, [refresh]);
 
   async function addMemory(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
