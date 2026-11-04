@@ -88,9 +88,9 @@ async function cancelInvalidQueuedRun(tx: Tx, run: AgentRun, reason: string, now
   return true;
 }
 
-async function claimOne(tx: Tx, workerId: string, leaseMs: number, now: Date) {
+async function claimOne(tx: Tx, workerId: string, leaseMs: number, now: Date, agentId?: string) {
   const candidate = await tx.agentRun.findFirst({
-    where: { status: "QUEUED", availableAt: { lte: now } },
+    where: { status: "QUEUED", availableAt: { lte: now }, ...(agentId ? { agentId } : {}) },
     orderBy: [{ availableAt: "asc" }, { createdAt: "asc" }],
   });
   if (!candidate) return null;
@@ -215,7 +215,7 @@ async function claimOne(tx: Tx, workerId: string, leaseMs: number, now: Date) {
 /** Atomically leases one queued run. It does not call a model or execute a tool. */
 export async function claimNextAgentRun(
   workerId: string,
-  options: { leaseMs?: number } = {},
+  options: { leaseMs?: number; agentId?: string } = {},
 ): Promise<ClaimedAgentRun | null> {
   if (!/^[A-Za-z0-9._:-]{3,64}$/.test(workerId)) throw new Error("INVALID_WORKER_ID");
   const leaseMs = options.leaseMs ?? 60_000;
@@ -227,7 +227,7 @@ export async function claimNextAgentRun(
   for (let attempt = 0; attempt < 3; attempt += 1) {
     try {
       const run = await prisma.$transaction(
-        (tx) => claimOne(tx, workerId, leaseMs, now),
+        (tx) => claimOne(tx, workerId, leaseMs, now, options.agentId),
         { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, maxWait: 5_000, timeout: 10_000 },
       );
       return run as ClaimedAgentRun | null;
