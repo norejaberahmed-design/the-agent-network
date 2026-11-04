@@ -125,6 +125,7 @@ model UserPersona {
   displayName String   @db.VarChar(60)
   tone        String   @db.VarChar(40)
   goal        String   @db.VarChar(240)
+  memoryContextEnabled Boolean @default(false)
   version     Int      @default(1)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
