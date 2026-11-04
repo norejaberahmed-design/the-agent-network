@@ -99,6 +99,6 @@ test("personal workspace refuses provider submission without explicit consent", 
   await page.getByPlaceholder(/ابحث عن موزعي معدات الشبكات/).fill("ابحث عن موزعي معدات الشبكات");
   await page.getByRole("button", { name: /ابدأ المهمة/ }).click();
 
-  await expect(page.getByRole("alert")).toContainText("وافق أولاً");
+  await expect(page.locator(".agent-error")).toContainText("وافق أولاً");
   expect(submitted).toBe(false);
 });
