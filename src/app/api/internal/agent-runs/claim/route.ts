@@ -1,23 +1,14 @@
-import { z } from "zod";
 import { apiError } from "@/lib/api-response";
-import { isAuthorizedAgentWorker, readBoundedWorkerJson } from "@/lib/worker-auth";
+import { getAuthorizedAgentWorkerId } from "@/lib/worker-auth";
 import { claimNextAgentRun } from "@/modules/runtime/worker";
 
 export const runtime = "nodejs";
 
-const schema = z.object({
-  workerId: z.string().regex(/^[A-Za-z0-9._:-]{3,64}$/),
-}).strict();
-
 export async function POST(request: Request) {
-  if (!isAuthorizedAgentWorker(request)) return apiError("UNAUTHENTICATED", 401);
-  const decoded = await readBoundedWorkerJson(request);
-  if (!decoded.ok) return apiError("INVALID_JSON", 400);
-  const body = decoded.value;
-  const parsed = schema.safeParse(body);
-  if (!parsed.success) return apiError("VALIDATION_FAILED", 422);
+  const workerId = getAuthorizedAgentWorkerId(request);
+  if (!workerId) return apiError("UNAUTHENTICATED", 401);
   try {
-    const run = await claimNextAgentRun(parsed.data.workerId);
+    const run = await claimNextAgentRun(workerId);
     return Response.json(
       { data: run, claimed: Boolean(run), planningEnabled: false, executionEnabled: false },
       { headers: { "Cache-Control": "no-store" } },
