@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { Prisma } from "@prisma/client";
 import { headers } from "next/headers";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
@@ -6,6 +7,7 @@ import { apiError } from "@/lib/api-response";
 import { isTrustedMutationRequest } from "@/lib/request-security";
 import { prisma } from "@/lib/prisma";
 import { projectAgentDisclosure, type AgentDisclosurePolicy } from "@/modules/agents/field-disclosure";
+import { lockAgentRuntime } from "@/modules/runtime/locks";
 
 export const runtime = "nodejs";
 
@@ -39,6 +41,7 @@ export async function PATCH(request: Request, context: RouteContext) {
 
   const { agentId } = await context.params;
   const result = await prisma.$transaction(async (tx) => {
+    await lockAgentRuntime(tx, agentId);
     const agent = await tx.agent.findUnique({
       where: { id: agentId },
       select: {
@@ -149,6 +152,57 @@ export async function PATCH(request: Request, context: RouteContext) {
     if (updated.count !== 1) return { state: "CONFLICT" as const };
 
     const correlationId = randomUUID();
+    if (parsed.data.status !== "ACTIVE") {
+      const queuedRuns = await tx.agentRun.findMany({
+        where: { agentId, status: { in: ["QUEUED", "CLAIMED"] } },
+        select: { id: true, grantIds: true },
+      });
+      const grantIds = [...new Set(queuedRuns.flatMap((run) => run.grantIds))].sort();
+      if (grantIds.length > 0) {
+        await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+          SELECT "id" FROM "PermissionGrant"
+          WHERE "id" IN (${Prisma.join(grantIds)})
+          ORDER BY "id"
+          FOR UPDATE
+        `);
+      }
+      for (const run of queuedRuns) {
+        const cancelled = await tx.agentRun.updateMany({
+          where: { id: run.id, agentId, status: { in: ["QUEUED", "CLAIMED"] } },
+          data: {
+            status: "CANCELLED",
+            cancelledAt: new Date(),
+            errorCode: "AGENT_NOT_ACTIVE",
+            claimedAt: null,
+            leaseExpiresAt: null,
+            workerId: null,
+          },
+        });
+        if (cancelled.count !== 1) continue;
+        for (const grantId of run.grantIds) {
+          const released = await tx.permissionGrant.updateMany({
+            where: { id: grantId, agentId, reservedUses: { gt: 0 } },
+            data: { reservedUses: { decrement: 1 } },
+          });
+          if (released.count !== 1) throw new Error("GRANT_RESERVATION_MISSING");
+        }
+        await tx.auditEvent.create({
+          data: {
+            actorUserId: session.user.id,
+            agentId,
+            ownerType: agent.ownerType,
+            ownerId,
+            action: "agent.run.cancelled",
+            targetType: "AgentRun",
+            targetId: run.id,
+            outcome: "COMPLETED",
+            policyVersion: String(agent.configurationVersion + 1),
+            correlationId,
+            metadata: { reason: "AGENT_NOT_ACTIVE", releasedGrantReservations: run.grantIds.length },
+          },
+        });
+      }
+    }
     await tx.auditEvent.create({
       data: {
         actorUserId: session.user.id,

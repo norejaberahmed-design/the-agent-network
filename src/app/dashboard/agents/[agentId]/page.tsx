@@ -40,7 +40,7 @@ export default async function AgentDetailPage({
     orderBy: { fieldKey: "asc" },
   }) : [];
 
-  const grants = access.canViewGrants ? await prisma.permissionGrant.findMany({
+  const grants = (access.canViewGrants || access.canManage) ? await prisma.permissionGrant.findMany({
     where: { agentId },
     select: {
       id: true,
@@ -60,7 +60,7 @@ export default async function AgentDetailPage({
     orderBy: { createdAt: "desc" },
   }) : [];
 
-  const runs = access.canManagePermissions ? await prisma.agentRun.findMany({
+  const runs = access.canManage ? await prisma.agentRun.findMany({
     where: { agentId },
     select: {
       id: true,
@@ -126,7 +126,7 @@ export default async function AgentDetailPage({
           }))}
         />
       ) : null}
-      {access.canManagePermissions ? (
+      {access.canManage ? (
         <RunManager
           agentId={agentId}
           active={access.agent.status === "ACTIVE"}

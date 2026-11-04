@@ -68,6 +68,7 @@ enum ApprovalStatus {
 
 enum AgentRunStatus {
   QUEUED
+  CLAIMED
   PLANNING
   WAITING_APPROVAL
   COMPLETED
@@ -317,6 +318,7 @@ model AgentRun {
   authorizedActions String[]
   grantIds          String[]       @default([])
   requestDigest     String         @db.VarChar(64)
+  agentConfigurationVersion Int    @default(1)
   idempotencyKey    String         @db.VarChar(128)
   status            AgentRunStatus @default(QUEUED)
   attemptCount      Int            @default(0)

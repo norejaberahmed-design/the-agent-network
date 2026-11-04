@@ -1,10 +1,12 @@
 import { randomUUID } from "node:crypto";
+import { Prisma } from "@prisma/client";
 import { headers } from "next/headers";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { apiError } from "@/lib/api-response";
 import { isTrustedMutationRequest } from "@/lib/request-security";
 import { prisma } from "@/lib/prisma";
+import { lockAgentRuntime } from "@/modules/runtime/locks";
 
 export const runtime = "nodejs";
 
@@ -15,6 +17,81 @@ type RouteContext = {
 const memberRoleSchema = z.object({
   role: z.enum(["ADMIN", "AGENT_MANAGER", "OPERATOR", "AUDITOR", "VIEWER"]),
 });
+
+async function cancelMemberRuns(
+  tx: Prisma.TransactionClient,
+  organizationId: string,
+  memberUserId: string,
+  actorUserId: string,
+  reason: "ROLE_CHANGED" | "MEMBER_REMOVED",
+) {
+  // Lock every organization agent, not only currently visible runs. This closes
+  // the race where a concurrent request queues a run while membership is revoked.
+  const agents = await tx.agent.findMany({
+    where: { ownerType: "ORGANIZATION", organizationOwnerId: organizationId },
+    select: { id: true },
+    orderBy: { id: "asc" },
+  });
+  for (const agent of agents) await lockAgentRuntime(tx, agent.id);
+
+  const runs = await tx.agentRun.findMany({
+    where: {
+      ownerType: "ORGANIZATION",
+      ownerId: organizationId,
+      requesterUserId: memberUserId,
+      status: { in: ["QUEUED", "CLAIMED"] },
+    },
+    select: { id: true, agentId: true, grantIds: true, agentConfigurationVersion: true },
+  });
+  const grantIds = [...new Set(runs.flatMap((run) => run.grantIds))].sort();
+  if (grantIds.length > 0) {
+    await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+      SELECT "id" FROM "PermissionGrant"
+      WHERE "id" IN (${Prisma.join(grantIds)})
+      ORDER BY "id"
+      FOR UPDATE
+    `);
+  }
+
+  for (const run of runs) {
+    const changed = await tx.agentRun.updateMany({
+      where: { id: run.id, agentId: run.agentId, status: { in: ["QUEUED", "CLAIMED"] } },
+      data: {
+        status: "CANCELLED",
+        cancelledAt: new Date(),
+        errorCode: "REQUESTER_ACCESS_REVOKED",
+        claimedAt: null,
+        leaseExpiresAt: null,
+        workerId: null,
+      },
+    });
+    if (changed.count !== 1) continue;
+    for (const grantId of run.grantIds) {
+      const released = await tx.permissionGrant.updateMany({
+        where: { id: grantId, agentId: run.agentId, reservedUses: { gt: 0 } },
+        data: { reservedUses: { decrement: 1 } },
+      });
+      if (released.count !== 1) throw new Error("GRANT_RESERVATION_INVARIANT");
+    }
+    await tx.auditEvent.create({
+      data: {
+        actorUserId,
+        agentId: run.agentId,
+        ownerType: "ORGANIZATION",
+        ownerId: organizationId,
+        action: "agent.run.cancelled",
+        targetType: "AgentRun",
+        targetId: run.id,
+        outcome: "COMPLETED",
+        policyVersion: String(run.agentConfigurationVersion),
+        correlationId: randomUUID(),
+        metadata: { reason: "REQUESTER_ACCESS_REVOKED", membershipChange: reason },
+      },
+    });
+  }
+  return runs.length;
+}
+
 
 export async function PATCH(request: Request, context: RouteContext) {
   if (!(await isTrustedMutationRequest(request))) return apiError("INVALID_ORIGIN", 403);
@@ -73,6 +150,9 @@ export async function PATCH(request: Request, context: RouteContext) {
       data: { role: parsed.data.role },
     });
     if (changed.count !== 1) return { state: "CONFLICT" as const };
+    if (!["OWNER", "ADMIN", "AGENT_MANAGER"].includes(parsed.data.role)) {
+      await cancelMemberRuns(tx, organizationId, target.userId, session.user.id, "ROLE_CHANGED");
+    }
 
     const revokedInvitations = await tx.invitation.updateMany({
       where: {
@@ -176,6 +256,7 @@ export async function DELETE(request: Request, context: RouteContext) {
       },
     });
     if (deleted.count !== 1) return { state: "CONFLICT" as const };
+    await cancelMemberRuns(tx, organizationId, target.userId, session.user.id, "MEMBER_REMOVED");
 
     const revokedInvitations = await tx.invitation.updateMany({
       where: {

@@ -1,10 +1,12 @@
 import { randomUUID } from "node:crypto";
+import { Prisma } from "@prisma/client";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { apiError } from "@/lib/api-response";
 import { isTrustedMutationRequest } from "@/lib/request-security";
 import { prisma } from "@/lib/prisma";
 import { getAgentAccess } from "@/modules/agents/access";
+import { lockAgentRuntime } from "@/modules/runtime/locks";
 
 export const runtime = "nodejs";
 
@@ -22,16 +24,39 @@ export async function POST(request: Request, context: RouteContext) {
   const correlationId = randomUUID();
   try {
     const cancelled = await prisma.$transaction(async (tx) => {
+      await lockAgentRuntime(tx, agentId);
+      if (access.ownerType === "ORGANIZATION") {
+        const membership = await tx.membership.findUnique({
+          where: { organizationId_userId: { organizationId: access.ownerId, userId: session.user.id } },
+          select: { role: true },
+        });
+        if (!membership || !["OWNER", "ADMIN", "AGENT_MANAGER"].includes(membership.role)) {
+          throw new Error("ACCESS_REVOKED");
+        }
+      } else if (access.ownerId !== session.user.id) {
+        throw new Error("ACCESS_REVOKED");
+      }
       const run = await tx.agentRun.findFirst({
         where: { id: runId, agentId },
         select: { id: true, status: true, grantIds: true },
       });
       if (!run) return null;
-      if (run.status !== "QUEUED") throw new Error("RUN_NOT_CANCELLABLE");
+      if (run.grantIds.length > 0) {
+        await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+          SELECT "id" FROM "PermissionGrant"
+          WHERE "id" IN (${Prisma.join(run.grantIds)})
+          ORDER BY "id"
+          FOR UPDATE
+        `);
+      }
+      const currentRun = await tx.agentRun.findFirst({ where: { id: runId, agentId } });
+      if (!currentRun || (currentRun.status !== "QUEUED" && currentRun.status !== "CLAIMED")) {
+        throw new Error("RUN_NOT_CANCELLABLE");
+      }
 
       const changed = await tx.agentRun.updateMany({
-        where: { id: runId, agentId, status: "QUEUED" },
-        data: { status: "CANCELLED", cancelledAt: new Date() },
+        where: { id: runId, agentId, status: { in: ["QUEUED", "CLAIMED"] } },
+        data: { status: "CANCELLED", cancelledAt: new Date(), claimedAt: null, leaseExpiresAt: null, workerId: null },
       });
       if (changed.count !== 1) throw new Error("RUN_NOT_CANCELLABLE");
 
@@ -67,6 +92,7 @@ export async function POST(request: Request, context: RouteContext) {
       { headers: { "Cache-Control": "no-store" } },
     );
   } catch (error) {
+    if (error instanceof Error && error.message === "ACCESS_REVOKED") return apiError("FORBIDDEN", 403);
     if (error instanceof Error && (
       error.message === "RUN_NOT_CANCELLABLE" ||
       error.message === "GRANT_RESERVATION_MISSING"

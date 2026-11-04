@@ -220,6 +220,44 @@ suite("agent lifecycle and discovery activation (PostgreSQL integration)", () =>
     );
     expect(activate.status).toBe(200);
 
+    const grantId = `lifecycle-pause-grant-${suffix}`;
+    const runId = `lifecycle-pause-run-${suffix}`;
+    await prisma.agentCapability.create({
+      data: { agentId: organizationAgentId, key: "SEARCH_PUBLIC_WEB", description: "Search.", languages: ["en"] },
+    });
+    await prisma.permissionGrant.create({
+      data: {
+        id: grantId,
+        agentId: organizationAgentId,
+        purpose: "Research public suppliers for the owner.",
+        actionScope: ["SEARCH_PUBLIC_WEB"],
+        targetScope: ["PUBLIC_WEB"],
+        dataScope: ["PUBLIC_PROFILE"],
+        expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+        maxUses: 1,
+        reservedUses: 1,
+      },
+    });
+    await prisma.agentRun.create({
+      data: {
+        id: runId,
+        agentId: organizationAgentId,
+        requesterUserId: orgAdminId,
+        ownerType: "ORGANIZATION",
+        ownerId: organizationId,
+        task: "Research public supplier information.",
+        purpose: "Research public suppliers for the owner.",
+        target: "PUBLIC_WEB",
+        authorizedActions: ["SEARCH_PUBLIC_WEB"],
+        grantIds: [grantId],
+        requestDigest: "d".repeat(64),
+        idempotencyKey: `lifecycle-pause-key-${suffix}`,
+        status: "CLAIMED",
+        workerId: "test-worker-001",
+        leaseExpiresAt: new Date(Date.now() + 60_000),
+      },
+    });
+
     const pause = await updateLifecycle(
       patchRequest({ status: "PAUSED", discoverable: false }),
       context(organizationAgentId),
@@ -230,6 +268,10 @@ suite("agent lifecycle and discovery activation (PostgreSQL integration)", () =>
       select: { status: true, discoverable: true },
     });
     expect(agent).toEqual({ status: "PAUSED", discoverable: false });
+    const cancelledRun = await prisma.agentRun.findUniqueOrThrow({ where: { id: runId } });
+    expect(cancelledRun).toMatchObject({ status: "CANCELLED", errorCode: "AGENT_NOT_ACTIVE", workerId: null });
+    const releasedGrant = await prisma.permissionGrant.findUniqueOrThrow({ where: { id: grantId } });
+    expect(releasedGrant.reservedUses).toBe(0);
   });
 
   it("rejects invalid lifecycle states and inconsistent discoverability", async () => {
