@@ -23,6 +23,7 @@ const ownerId = `run-owner-${suffix}`;
 const outsiderId = `run-outsider-${suffix}`;
 const agentId = `run-agent-${suffix}`;
 const grantId = `run-grant-${suffix}`;
+const profileGrantId = `run-profile-grant-${suffix}`;
 const rateOwnerId = `run-rate-owner-${suffix}`;
 const rateAgentId = `run-rate-agent-${suffix}`;
 const rateGrantId = `run-rate-grant-${suffix}`;
@@ -38,6 +39,7 @@ const payload = (overrides: Record<string, unknown> = {}) => ({
   task: "Search public supplier information and summarize sources.",
   purpose: "Research public suppliers for the owner.",
   target: "PUBLIC_WEB",
+  grantId,
   idempotencyKey: `run-request-key-${suffix}`,
   providerConsent: true,
   ...overrides,
@@ -68,9 +70,25 @@ suite("agent run queue API (PostgreSQL integration)", () => {
         discoverable: false,
       },
     });
+    await prisma.agentCapability.createMany({
+      data: [
+        {
+          agentId,
+          key: "SEARCH_PUBLIC_WEB",
+          description: "Search public web sources under an owner grant.",
+          languages: ["ar", "en"],
+        },
+        {
+          agentId,
+          key: "READ_PUBLIC_PROFILE",
+          description: "Read explicitly public agent profiles under an owner grant.",
+          languages: ["ar", "en"],
+        },
+      ],
+    });
     await prisma.agentCapability.create({
       data: {
-        agentId,
+        agentId: rateAgentId,
         key: "SEARCH_PUBLIC_WEB",
         description: "Search public web sources under an owner grant.",
         languages: ["ar", "en"],
@@ -108,6 +126,18 @@ suite("agent run queue API (PostgreSQL integration)", () => {
     });
     await prisma.permissionGrant.create({
       data: {
+        id: profileGrantId,
+        agentId,
+        purpose: "Research public suppliers for the owner.",
+        actionScope: ["DISCOVER_INTERNAL"],
+        targetScope: ["PUBLIC_WEB"],
+        dataScope: ["PUBLIC_PROFILE"],
+        expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+        maxUses: 5,
+      },
+    });
+    await prisma.permissionGrant.create({
+      data: {
         id: grantId,
         agentId,
         purpose: "Research public suppliers for the owner.",
@@ -127,7 +157,7 @@ suite("agent run queue API (PostgreSQL integration)", () => {
     await prisma.agentCapability.deleteMany({ where: { agentId: rateAgentId } });
     await prisma.agent.deleteMany({ where: { id: rateAgentId } });
     await prisma.agentRun.deleteMany({ where: { agentId } });
-    await prisma.permissionGrant.deleteMany({ where: { id: grantId } });
+    await prisma.permissionGrant.deleteMany({ where: { id: { in: [grantId, profileGrantId] } } });
     await prisma.agentCapability.deleteMany({ where: { agentId } });
     await prisma.agent.deleteMany({ where: { id: agentId } });
     await prisma.user.deleteMany({ where: { id: { in: [ownerId, outsiderId, rateOwnerId] } } });
@@ -191,6 +221,20 @@ suite("agent run queue API (PostgreSQL integration)", () => {
     ).resolves.toBe(1);
   });
 
+  it("uses only the exact grant selected by the owner, not sibling grants with the same purpose and target", async () => {
+    setSessionUser(ownerId);
+    const response = await createRun(request(payload({
+      grantId: profileGrantId,
+      idempotencyKey: `profile-grant-only-${suffix}`,
+    })), context(agentId));
+    expect(response.status).toBe(202);
+    const body = await response.json();
+    expect(body.data.authorizedActions).toEqual(["READ_PUBLIC_PROFILE"]);
+    const run = await prisma.agentRun.findUniqueOrThrow({ where: { id: body.data.id } });
+    expect(run.grantIds).toEqual([profileGrantId]);
+    await cancelRun(request({}), { params: Promise.resolve({ agentId, runId: body.data.id }) });
+  });
+
   it("cancels a queued run and releases its reserved grant use", async () => {
     setSessionUser(ownerId);
     const response = await cancelRun(request({}), {
@@ -227,7 +271,7 @@ suite("agent run queue API (PostgreSQL integration)", () => {
   it("serializes concurrent queue requests and enforces the per-user hourly limit", async () => {
     setSessionUser(rateOwnerId);
     const responses = await Promise.all(Array.from({ length: 12 }, (_, index) =>
-      createRun(request(payload({ idempotencyKey: `rate-limit-${index}-${suffix}` })), context(rateAgentId))
+      createRun(request(payload({ grantId: rateGrantId, idempotencyKey: `rate-limit-${index}-${suffix}` })), context(rateAgentId))
     ));
     expect(responses.filter((response) => response.status === 202)).toHaveLength(10);
     expect(responses.filter((response) => response.status === 429)).toHaveLength(2);
