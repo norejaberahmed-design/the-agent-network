@@ -136,10 +136,9 @@ async function claimOne(tx: Tx, workerId: string, leaseMs: number, now: Date, ag
   }
 
   const requiredActions = [...new Set(current.authorizedActions)];
-  const requiredGrantScopes = requiredActions.map((action) => ACTION_TO_GRANT[action]);
   if (
     requiredActions.length === 0 ||
-    requiredGrantScopes.some((scope) => !scope) ||
+    requiredActions.some((action) => !ACTION_TO_GRANT[action]) ||
     current.grantIds.length === 0
   ) {
     await cancelInvalidQueuedRun(tx, current, "INVALID_AUTHORIZATION_SNAPSHOT", now);
@@ -167,10 +166,11 @@ async function claimOne(tx: Tx, workerId: string, leaseMs: number, now: Date, ag
 
   const capabilityKeys = new Set(capabilities.map((item) => item.key));
   const grantIds = new Set(grants.map((grant) => grant.id));
-  const actionsAuthorized = requiredActions.every((action) =>
-    capabilityKeys.has(action) &&
-    grants.some((grant) => grant.actionScope.includes(ACTION_TO_GRANT[action]) && grant.reservedUses > 0)
-  );
+  const actionsAuthorized = requiredActions.every((action) => {
+    const requiredScope = ACTION_TO_GRANT[action];
+    return requiredScope !== undefined && capabilityKeys.has(action) &&
+      grants.some((grant) => grant.actionScope.includes(requiredScope) && grant.reservedUses > 0);
+  });
   if (
     grants.length !== current.grantIds.length ||
     current.grantIds.some((id) => !grantIds.has(id)) ||
