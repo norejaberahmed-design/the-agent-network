@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 type GrantOption = {
+  id: string;
   purpose: string;
   target: string;
   actionScope: string[];
@@ -16,9 +17,13 @@ type Run = {
   target: string;
   authorizedActions: string[];
   status: string;
+  errorCode?: string | null;
   attemptCount: number;
   maxAttempts: number;
   createdAt: string;
+  planSummary?: string | null;
+  planSources?: Array<{ url: string; title: string }> | null;
+  steps?: Array<{ stepId: string; ordinal: number; action: string; description: string; status: string }>;
 };
 
 export function RunManager({
@@ -34,15 +39,17 @@ export function RunManager({
 }) {
   const router = useRouter();
   const [task, setTask] = useState("");
+  const [providerConsent, setProviderConsent] = useState(false);
   const [selected, setSelected] = useState(0);
   const [runs, setRuns] = useState(initialRuns);
+  useEffect(() => setRuns(initialRuns), [initialRuns]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
   async function queueRun(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!active || grantOptions.length === 0) return;
+    if (!active || grantOptions.length === 0 || !providerConsent) return;
     setBusy(true);
     setError("");
     setNotice("");
@@ -55,8 +62,10 @@ export function RunManager({
         body: JSON.stringify({
           task,
           purpose: grant.purpose,
+          grantId: grant.id,
           target: grant.target,
           idempotencyKey: crypto.randomUUID(),
+          providerConsent: true,
         }),
       });
       const body = await response.json();
@@ -65,8 +74,33 @@ export function RunManager({
         return;
       }
       setTask("");
+      setProviderConsent(false);
       setRuns((current) => [body.data as Run, ...current].slice(0, 50));
-      setNotice("تم حفظ المهمة في قائمة الانتظار. لم يبدأ التنفيذ بعد.");
+      setNotice("تم حفظ المهمة في قائمة الانتظار. سيُنشئ العامل خطة للمراجعة فقط.");
+      router.refresh();
+    } catch {
+      setError("تعذر الاتصال بالخادم.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function rejectPlan(runId: string) {
+    setBusy(true);
+    setError("");
+    setNotice("");
+    try {
+      const response = await fetch(
+        `/api/v1/agents/${encodeURIComponent(agentId)}/runs/${encodeURIComponent(runId)}/reject`,
+        { method: "POST" },
+      );
+      const body = await response.json();
+      if (!response.ok) {
+        setError(body.error?.message ?? "تعذر رفض الخطة.");
+        return;
+      }
+      setRuns((current) => current.map((run) => run.id === runId ? { ...run, status: "CANCELLED" } : run));
+      setNotice("تم رفض الخطة. لم يُنفّذ أي إجراء خارجي.");
       router.refresh();
     } catch {
       setError("تعذر الاتصال بالخادم.");
@@ -104,8 +138,11 @@ export function RunManager({
   return (
     <section className="panel" style={{ margin: "28px 0" }}>
       <div className="eyebrow">AGENT RUNTIME</div>
-      <h2>إدارة المهام</h2>
-      <p className="muted">تُحفظ المهمة في قاعدة البيانات بعد التحقق من صلاحيات الوكيل والتفويض النشط. قائمة الانتظار لا تنفّذ المهام حالياً.</p>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+        <h2>إدارة المهام</h2>
+        <button className="button secondary" type="button" onClick={() => router.refresh()}>تحديث القائمة</button>
+      </div>
+      <p className="muted">يُحفظ نص المهمة في قاعدة البيانات ويُرسل إلى مزود الذكاء الاصطناعي عند تشغيل العامل. تُحذف المهام والخطط بعد 30 يوماً، وتخضع معالجة المزود لسياسة بياناته. لا تُدخل كلمات مرور أو بيانات شخصية أو أسراراً. لا ينفّذ النظام أي إجراء خارجي من هذه الشاشة.</p>
       {!active ? <p className="muted">فعّل الوكيل أولاً لإضافة مهام.</p> : grantOptions.length === 0 ? (
         <p className="muted">لا يوجد تفويض نشط يطابق غرضاً ونطاقاً مسموحاً. أنشئ تفويضاً محدوداً أولاً.</p>
       ) : (
@@ -115,7 +152,7 @@ export function RunManager({
             <select id="run-grant" value={selected} onChange={(event) => setSelected(Number(event.target.value))}>
               {grantOptions.map((grant, index) => (
                 <option key={`${grant.purpose}:${grant.target}:${index}`} value={index}>
-                  {`${grant.purpose} — ${grant.target}`}
+                  {`${grant.purpose} — ${grant.target} — ${grant.actionScope.join(", ")}`}
                 </option>
               ))}
             </select>
@@ -124,7 +161,11 @@ export function RunManager({
             <label htmlFor="run-task">المهمة المطلوبة</label>
             <textarea id="run-task" required minLength={1} maxLength={4000} rows={4} value={task} onChange={(event) => setTask(event.target.value)} />
           </div>
-          <div><button className="button" type="submit" disabled={busy || !task.trim()}>{busy ? "جارٍ الحفظ..." : "إضافة إلى قائمة الانتظار"}</button></div>
+          <label style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+            <input type="checkbox" checked={providerConsent} onChange={(event) => setProviderConsent(event.target.checked)} />
+            <span>أوافق على إرسال نص المهمة إلى مزود الذكاء الاصطناعي المكوّن، واستخدام البحث العام فقط إذا سمح التفويض بذلك.</span>
+          </label>
+          <div><button className="button" type="submit" disabled={busy || !task.trim() || !providerConsent}>{busy ? "جارٍ الحفظ..." : "إضافة إلى قائمة الانتظار"}</button></div>
         </form>
       )}
       {error ? <p className="error" role="alert">{error}</p> : null}
@@ -138,7 +179,31 @@ export function RunManager({
             </div>
             <p>{run.task}</p>
             <p className="muted">النطاق: {run.target} · الصلاحيات: {run.authorizedActions.join("، ")}</p>
-            {run.status === "QUEUED" ? (
+            {run.errorCode ? <p className="error">رمز الحالة: {run.errorCode}</p> : null}
+            {run.planSummary ? (
+              <div className="panel" style={{ marginTop: 12 }}>
+                <strong>خطة مقترحة للمراجعة — غير منفّذة</strong>
+                <p>{run.planSummary}</p>
+                {run.steps?.map((step) => (
+                  <div key={step.stepId} style={{ marginTop: 10 }}>
+                    <strong>{step.ordinal + 1}. {step.action}</strong>
+                    <p>{step.description}</p>
+                  </div>
+                ))}
+                {run.planSources?.length ? (
+                  <div style={{ marginTop: 12 }}>
+                    <strong>المصادر التي أعادها البحث</strong>
+                    <ul>{run.planSources.map((source) => (
+                      <li key={source.url}><a href={source.url} target="_blank" rel="noopener noreferrer">{source.title}</a></li>
+                    ))}</ul>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+            {run.status === "PLANNED" ? (
+              <button className="button secondary" type="button" disabled={busy} onClick={() => rejectPlan(run.id)}>رفض الخطة</button>
+            ) : null}
+            {run.status === "QUEUED" || run.status === "PLANNING" ? (
               <button className="button secondary" type="button" disabled={busy} onClick={() => cancelRun(run.id)}>إلغاء المهمة</button>
             ) : null}
           </article>

@@ -8,6 +8,7 @@ const messages: Record<string, string> = {
   INVALID_ORIGIN: "The request origin is not allowed.",
   NOT_FOUND: "The requested resource was not found.",
   CONFLICT: "The resource changed or is no longer in the requested state.",
+  RATE_LIMITED: "The request limit has been reached. Please try again later.",
 };
 
 export function apiError(

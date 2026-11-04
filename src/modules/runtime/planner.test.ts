@@ -123,7 +123,7 @@ describe("agent planning boundary", () => {
     };
     const result = await createAgentPlan(provider, request);
 
-    expect(result).toEqual({ status: "PROVIDER_ERROR" });
+    expect(result).toEqual({ status: "PROVIDER_ERROR", code: "PROVIDER_UNKNOWN", retryable: true });
     expect(JSON.stringify(result)).not.toContain("do-not-return-this");
   });
 

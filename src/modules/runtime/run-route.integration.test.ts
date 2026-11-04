@@ -23,6 +23,10 @@ const ownerId = `run-owner-${suffix}`;
 const outsiderId = `run-outsider-${suffix}`;
 const agentId = `run-agent-${suffix}`;
 const grantId = `run-grant-${suffix}`;
+const profileGrantId = `run-profile-grant-${suffix}`;
+const rateOwnerId = `run-rate-owner-${suffix}`;
+const rateAgentId = `run-rate-agent-${suffix}`;
+const rateGrantId = `run-rate-grant-${suffix}`;
 let queuedRunId = "";
 
 const setSessionUser = (userId: string | null) => {
@@ -35,7 +39,9 @@ const payload = (overrides: Record<string, unknown> = {}) => ({
   task: "Search public supplier information and summarize sources.",
   purpose: "Research public suppliers for the owner.",
   target: "PUBLIC_WEB",
+  grantId,
   idempotencyKey: `run-request-key-${suffix}`,
+  providerConsent: true,
   ...overrides,
 });
 const request = (body: unknown) => new Request("http://localhost/api/v1/agents/runs", {
@@ -50,6 +56,7 @@ suite("agent run queue API (PostgreSQL integration)", () => {
       data: [
         { id: ownerId, name: "Run Owner", email: `run-owner-${suffix}@example.invalid` },
         { id: outsiderId, name: "Run Outsider", email: `run-outsider-${suffix}@example.invalid` },
+        { id: rateOwnerId, name: "Rate Owner", email: `run-rate-owner-${suffix}@example.invalid` },
       ],
     });
     await prisma.agent.create({
@@ -63,12 +70,54 @@ suite("agent run queue API (PostgreSQL integration)", () => {
         discoverable: false,
       },
     });
-    await prisma.agentCapability.create({
+    await prisma.agentCapability.createMany({
+      data: [
+        {
+          agentId,
+          key: "SEARCH_PUBLIC_WEB",
+          description: "Search public web sources under an owner grant.",
+          languages: ["ar", "en"],
+        },
+        {
+          agentId,
+          key: "READ_PUBLIC_PROFILE",
+          description: "Read explicitly public agent profiles under an owner grant.",
+          languages: ["ar", "en"],
+        },
+      ],
+    });
+    await prisma.agent.create({
       data: {
+        id: rateAgentId,
+        ownerType: "USER",
+        userOwnerId: rateOwnerId,
+        name: "Rate Limit Test Agent",
+        purpose: "Research public supplier information.",
+        status: "ACTIVE",
+      },
+    });
+    await prisma.permissionGrant.create({
+      data: {
+        id: rateGrantId,
+        agentId: rateAgentId,
+        purpose: "Research public suppliers for the owner.",
+        actionScope: ["SEARCH_PUBLIC_WEB"],
+        targetScope: ["PUBLIC_WEB"],
+        dataScope: ["PUBLIC_PROFILE"],
+        expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+        maxUses: 100,
+      },
+    });
+    await prisma.permissionGrant.create({
+      data: {
+        id: profileGrantId,
         agentId,
-        key: "SEARCH_PUBLIC_WEB",
-        description: "Search public web sources under an owner grant.",
-        languages: ["ar", "en"],
+        purpose: "Research public suppliers for the owner.",
+        actionScope: ["DISCOVER_INTERNAL"],
+        targetScope: ["PUBLIC_WEB"],
+        dataScope: ["PUBLIC_PROFILE"],
+        expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+        maxUses: 5,
       },
     });
     await prisma.permissionGrant.create({
@@ -86,12 +135,16 @@ suite("agent run queue API (PostgreSQL integration)", () => {
   });
 
   afterAll(async () => {
-    await prisma.auditEvent.deleteMany({ where: { agentId } });
+    await prisma.auditEvent.deleteMany({ where: { agentId: { in: [agentId, rateAgentId] } } });
+    await prisma.agentRun.deleteMany({ where: { agentId: { in: [agentId, rateAgentId] } } });
+    await prisma.permissionGrant.deleteMany({ where: { id: rateGrantId } });
+    await prisma.agentCapability.deleteMany({ where: { agentId: rateAgentId } });
+    await prisma.agent.deleteMany({ where: { id: rateAgentId } });
     await prisma.agentRun.deleteMany({ where: { agentId } });
-    await prisma.permissionGrant.deleteMany({ where: { id: grantId } });
+    await prisma.permissionGrant.deleteMany({ where: { id: { in: [grantId, profileGrantId] } } });
     await prisma.agentCapability.deleteMany({ where: { agentId } });
     await prisma.agent.deleteMany({ where: { id: agentId } });
-    await prisma.user.deleteMany({ where: { id: { in: [ownerId, outsiderId] } } });
+    await prisma.user.deleteMany({ where: { id: { in: [ownerId, outsiderId, rateOwnerId] } } });
     vi.mocked(auth.api.getSession).mockReset();
   });
 
@@ -103,6 +156,12 @@ suite("agent run queue API (PostgreSQL integration)", () => {
     setSessionUser(outsiderId);
     const outsider = await createRun(request(payload()), context(agentId));
     expect(outsider.status).toBe(403);
+  });
+
+  it("requires explicit provider-processing consent", async () => {
+    setSessionUser(ownerId);
+    const response = await createRun(request(payload({ providerConsent: false })), context(agentId));
+    expect(response.status).toBe(422);
   });
 
   it("queues a run from server-derived capabilities and live grants, with idempotency and reservation", async () => {
@@ -146,6 +205,20 @@ suite("agent run queue API (PostgreSQL integration)", () => {
     ).resolves.toBe(1);
   });
 
+  it("uses only the exact grant selected by the owner, not sibling grants with the same purpose and target", async () => {
+    setSessionUser(ownerId);
+    const response = await createRun(request(payload({
+      grantId: profileGrantId,
+      idempotencyKey: `profile-grant-only-${suffix}`,
+    })), context(agentId));
+    expect(response.status).toBe(202);
+    const body = await response.json();
+    expect(body.data.authorizedActions).toEqual(["READ_PUBLIC_PROFILE"]);
+    const run = await prisma.agentRun.findUniqueOrThrow({ where: { id: body.data.id } });
+    expect(run.grantIds).toEqual([profileGrantId]);
+    await cancelRun(request({}), { params: Promise.resolve({ agentId, runId: body.data.id }) });
+  });
+
   it("cancels a queued run and releases its reserved grant use", async () => {
     setSessionUser(ownerId);
     const response = await cancelRun(request({}), {
@@ -177,6 +250,17 @@ suite("agent run queue API (PostgreSQL integration)", () => {
     expect(savedRun).toMatchObject({ status: "CANCELLED", errorCode: "GRANT_REVOKED" });
     const grant = await prisma.permissionGrant.findUniqueOrThrow({ where: { id: grantId } });
     expect(grant).toMatchObject({ status: "REVOKED", reservedUses: 0 });
+  });
+
+  it("serializes concurrent queue requests and enforces the per-user hourly limit", async () => {
+    setSessionUser(rateOwnerId);
+    const responses = await Promise.all(Array.from({ length: 12 }, (_, index) =>
+      createRun(request(payload({ grantId: rateGrantId, idempotencyKey: `rate-limit-${index}-${suffix}` })), context(rateAgentId))
+    ));
+    expect(responses.filter((response) => response.status === 202)).toHaveLength(10);
+    expect(responses.filter((response) => response.status === 429)).toHaveLength(2);
+    const saved = await prisma.agentRun.count({ where: { agentId: rateAgentId, requesterUserId: rateOwnerId } });
+    expect(saved).toBe(10);
   });
 
   it("does not replay the same idempotency key across different agents", async () => {

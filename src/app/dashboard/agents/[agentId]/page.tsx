@@ -71,6 +71,14 @@ export default async function AgentDetailPage({
       status: true,
       attemptCount: true,
       maxAttempts: true,
+      errorCode: true,
+      planSummary: true,
+      planSources: true,
+      plannedAt: true,
+      steps: {
+        orderBy: { ordinal: "asc" },
+        select: { stepId: true, ordinal: true, action: true, description: true, status: true },
+      },
       createdAt: true,
     },
     orderBy: { createdAt: "desc" },
@@ -85,14 +93,12 @@ export default async function AgentDetailPage({
       grant.dataScope.includes("PUBLIC_PROFILE")
     )
     .flatMap((grant) => grant.targetScope.map((target) => ({
+      id: grant.id,
       purpose: grant.purpose,
       target,
       actionScope: grant.actionScope,
       dataScope: grant.dataScope,
-    })))
-    .filter((option, index, all) => all.findIndex((candidate) =>
-      candidate.purpose === option.purpose && candidate.target === option.target
-    ) === index);
+    })));
 
   return (
     <main className="shell">
@@ -130,7 +136,7 @@ export default async function AgentDetailPage({
         <RunManager
           agentId={agentId}
           active={access.agent.status === "ACTIVE"}
-          initialRuns={runs.map((run) => ({ ...run, createdAt: run.createdAt.toISOString() }))}
+          initialRuns={runs.map((run) => ({ ...run, planSources: run.planSources as Array<{ url: string; title: string }> | null, createdAt: run.createdAt.toISOString() }))}
           grantOptions={grantOptions}
         />
       ) : null}

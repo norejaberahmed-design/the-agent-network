@@ -36,6 +36,13 @@ export async function GET(_request: Request, context: RouteContext) {
       attemptCount: true,
       maxAttempts: true,
       errorCode: true,
+      planSummary: true,
+      planSources: true,
+      plannedAt: true,
+      steps: {
+        orderBy: { ordinal: "asc" },
+        select: { stepId: true, ordinal: true, action: true, description: true, status: true },
+      },
       createdAt: true,
       updatedAt: true,
       startedAt: true,
@@ -89,23 +96,24 @@ export async function POST(request: Request, context: RouteContext) {
   }
 
   const now = new Date();
-  const [capabilities, grants] = await Promise.all([
+  const [capabilities, grant] = await Promise.all([
     prisma.agentCapability.findMany({
       where: { agentId },
       select: { key: true },
     }),
-    prisma.permissionGrant.findMany({
+    prisma.permissionGrant.findFirst({
       where: {
+        id: input.grantId,
         agentId,
         purpose: input.purpose,
         status: "ACTIVE",
         expiresAt: { gt: now },
         targetScope: { has: input.target },
+        dataScope: { has: "PUBLIC_PROFILE" },
       },
       select: {
         id: true,
         actionScope: true,
-        dataScope: true,
         maxUses: true,
         uses: true,
         reservedUses: true,
@@ -113,35 +121,46 @@ export async function POST(request: Request, context: RouteContext) {
     }),
   ]);
 
-  const declared = new Set(capabilities.map((capability) => capability.key));
-  const eligibleGrants = grants.filter((grant) =>
-    (grant.maxUses === null || grant.uses + grant.reservedUses < grant.maxUses) &&
-    grant.dataScope.includes("PUBLIC_PROFILE")
-  );
-  const allowed = new Set<string>();
-  const grantIdsByAction = new Map<string, string[]>();
-  for (const grant of eligibleGrants) {
-    if (grant.actionScope.includes("DISCOVER_INTERNAL") && declared.has("READ_PUBLIC_PROFILE")) {
-      allowed.add("READ_PUBLIC_PROFILE");
-      if (!grantIdsByAction.has("READ_PUBLIC_PROFILE")) grantIdsByAction.set("READ_PUBLIC_PROFILE", [grant.id]);
-    }
-    if (grant.actionScope.includes("SEARCH_PUBLIC_WEB") && declared.has("SEARCH_PUBLIC_WEB")) {
-      allowed.add("SEARCH_PUBLIC_WEB");
-      if (!grantIdsByAction.has("SEARCH_PUBLIC_WEB")) grantIdsByAction.set("SEARCH_PUBLIC_WEB", [grant.id]);
-    }
+  if (!grant || (grant.maxUses !== null && grant.uses + grant.reservedUses >= grant.maxUses)) {
+    return apiError("FORBIDDEN", 403);
   }
-  const authorizedActions = [...allowed].sort();
-  const selectedGrantIds = [...new Set(authorizedActions.flatMap((action) => grantIdsByAction.get(action) ?? []))].sort();
-  if (authorizedActions.length === 0 || selectedGrantIds.length === 0) return apiError("FORBIDDEN", 403);
+
+  const declared = new Set(capabilities.map((capability) => capability.key));
+  const authorizedActions: string[] = [];
+  if (grant.actionScope.includes("DISCOVER_INTERNAL") && declared.has("READ_PUBLIC_PROFILE")) {
+    authorizedActions.push("READ_PUBLIC_PROFILE");
+  }
+  if (grant.actionScope.includes("SEARCH_PUBLIC_WEB") && declared.has("SEARCH_PUBLIC_WEB")) {
+    authorizedActions.push("SEARCH_PUBLIC_WEB");
+  }
+  authorizedActions.sort();
+  const selectedGrantIds = [grant.id];
+  if (authorizedActions.length === 0) return apiError("FORBIDDEN", 403);
 
   const correlationId = randomUUID();
   try {
     const created = await prisma.$transaction(async (tx) => {
+      // Serialize per-requester and per-agent quota checks without coupling them
+      // to row locks used by grant mutation transactions.
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`agent-run-user:${session.user.id}`}, 0))`;
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`agent-run-agent:${agentId}`}, 0))`;
+
       const activeAgent = await tx.agent.findFirst({
         where: { id: agentId, status: "ACTIVE" },
-        select: { id: true },
+        select: { id: true, configurationVersion: true },
       });
       if (!activeAgent) throw new Error("AGENT_NOT_ACTIVE");
+      if (activeAgent.configurationVersion !== access.agent.configurationVersion) {
+        throw new Error("AGENT_CONFIGURATION_CHANGED");
+      }
+      const recentUserRuns = await tx.agentRun.count({
+        where: { requesterUserId: session.user.id, createdAt: { gte: new Date(now.getTime() - 60 * 60 * 1000) } },
+      });
+      if (recentUserRuns >= 10) throw new Error("USER_QUEUE_RATE_LIMIT");
+      const activeAgentRuns = await tx.agentRun.count({
+        where: { agentId, status: { in: ["QUEUED", "PLANNING"] } },
+      });
+      if (activeAgentRuns >= 20) throw new Error("AGENT_QUEUE_LIMIT");
       if (access.ownerType === "ORGANIZATION") {
         const membership = await tx.membership.findUnique({
           where: { organizationId_userId: { organizationId: access.ownerId, userId: session.user.id } },
@@ -156,6 +175,7 @@ export async function POST(request: Request, context: RouteContext) {
           where: {
             id: grantId,
             agentId,
+            id: input.grantId,
             purpose: input.purpose,
             targetScope: { has: input.target },
             dataScope: { has: "PUBLIC_PROFILE" },
@@ -189,6 +209,10 @@ export async function POST(request: Request, context: RouteContext) {
           requesterUserId: session.user.id,
           ownerType: access.ownerType,
           ownerId: access.ownerId,
+          agentConfigurationVersion: access.agent.configurationVersion,
+          providerConsentAt: now,
+          providerConsentVersion: "ai-processing-v1",
+          expiresAt: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000),
           task: input.task,
           purpose: input.purpose,
           target: input.target,
@@ -229,6 +253,7 @@ export async function POST(request: Request, context: RouteContext) {
             reservedGrantCount: selectedGrantIds.length,
             target: input.target,
             status: "QUEUED",
+            providerConsentVersion: "ai-processing-v1",
           },
         },
       });
@@ -243,7 +268,12 @@ export async function POST(request: Request, context: RouteContext) {
     if (error instanceof Error && error.message === "GRANT_RESERVATION_CONFLICT") {
       return apiError("CONFLICT", 409);
     }
-    if (error instanceof Error && error.message === "AGENT_NOT_ACTIVE") return apiError("CONFLICT", 409);
+    if (error instanceof Error && (
+      error.message === "AGENT_NOT_ACTIVE" || error.message === "AGENT_CONFIGURATION_CHANGED"
+    )) return apiError("CONFLICT", 409);
+    if (error instanceof Error && (
+      error.message === "USER_QUEUE_RATE_LIMIT" || error.message === "AGENT_QUEUE_LIMIT"
+    )) return apiError("RATE_LIMITED", 429);
     if (error instanceof Error && error.message === "ACCESS_REVOKED") return apiError("FORBIDDEN", 403);
     if (isUniqueConstraintError(error)) {
       const duplicate = await prisma.agentRun.findUnique({
