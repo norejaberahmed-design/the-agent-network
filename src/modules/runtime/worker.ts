@@ -28,6 +28,7 @@ type AuthorizationSnapshot = {
   agentPurpose: string;
   allowedActions: AgentPlanningRequest["trustedContext"]["allowedActions"];
   configurationVersion: number;
+  persona?: { displayName: string; tone: string; goal: string };
 };
 
 async function releaseReservations(tx: Tx, run: Pick<AgentRun, "agentId" | "grantIds">) {
@@ -120,11 +121,19 @@ async function validateLiveAuthorization(
   );
   if (allowedActions.length !== run.authorizedActions.length) return null;
 
+  const persona = run.ownerType === "USER"
+    ? await tx.userPersona.findUnique({
+        where: { userId: run.requesterUserId },
+        select: { displayName: true, tone: true, goal: true },
+      })
+    : null;
+
   return {
     agentName: agent.name,
     agentPurpose: agent.purpose,
     allowedActions: [...allowedActions, "ASK_OWNER"],
     configurationVersion: agent.configurationVersion,
+    ...(persona ? { persona } : {}),
   };
 }
 
@@ -465,6 +474,7 @@ export async function runAgentWorkerOnce(args: {
       agentName: authorization.agentName,
       agentPurpose: authorization.agentPurpose,
       allowedActions: authorization.allowedActions,
+      ...(authorization.persona ? { persona: authorization.persona } : {}),
     },
     untrustedSources: [],
     safetyIdentifier: safetyIdentifierForUser(claimed.requesterUserId),
