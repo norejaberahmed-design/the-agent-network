@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { Prisma } from "@prisma/client";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { apiError } from "@/lib/api-response";
@@ -42,8 +43,25 @@ export async function POST(request: Request, context: RouteContext) {
 
     if (grant.status !== "ACTIVE") return { state: "NOT_ACTIVE" as const };
 
-    const changed = await tx.permissionGrant.updateMany({
+    const queuedRuns = await tx.agentRun.findMany({
+      where: { agentId, status: { in: ["QUEUED", "CLAIMED"] }, grantIds: { has: grantId } },
+      select: { id: true, grantIds: true },
+    });
+    const lockIds = [...new Set([grantId, ...queuedRuns.flatMap((run) => run.grantIds)])].sort();
+    await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+      SELECT "id" FROM "PermissionGrant"
+      WHERE "id" IN (${Prisma.join(lockIds)})
+      ORDER BY "id"
+      FOR UPDATE
+    `);
+    const currentGrant = await tx.permissionGrant.findFirst({
       where: { id: grantId, agentId, status: "ACTIVE" },
+      select: { id: true, version: true },
+    });
+    if (!currentGrant) return { state: "CONFLICT" as const };
+
+    const changed = await tx.permissionGrant.updateMany({
+      where: { id: grantId, agentId, status: "ACTIVE", version: currentGrant.version },
       data: {
         status: "REVOKED",
         revokedAt: new Date(),
@@ -51,11 +69,6 @@ export async function POST(request: Request, context: RouteContext) {
       },
     });
     if (changed.count !== 1) return { state: "CONFLICT" as const };
-
-    const queuedRuns = await tx.agentRun.findMany({
-      where: { agentId, status: { in: ["QUEUED", "CLAIMED"] }, grantIds: { has: grantId } },
-      select: { id: true, grantIds: true },
-    });
     for (const run of queuedRuns) {
       const cancelled = await tx.agentRun.updateMany({
         where: { id: run.id, agentId, status: { in: ["QUEUED", "CLAIMED"] } },
@@ -79,7 +92,7 @@ export async function POST(request: Request, context: RouteContext) {
           targetType: "AgentRun",
           targetId: run.id,
           outcome: "COMPLETED",
-          policyVersion: String(grant.version + 1),
+          policyVersion: String(currentGrant.version + 1),
           correlationId,
           metadata: { reason: "GRANT_REVOKED", releasedGrantReservations: run.grantIds.length },
         },
