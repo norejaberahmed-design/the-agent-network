@@ -127,7 +127,7 @@ export default async function AgentDetailPage({
           supportedLanguages: access.agent.supportedLanguages,
           configurationVersion: access.agent.configurationVersion,
         }}
-        canManage={access.canManageFieldPolicies}
+        canManage={access.canManage}
       />
       <AgentLifecycleManager
         agentId={agentId}
