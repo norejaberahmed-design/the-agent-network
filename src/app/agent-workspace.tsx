@@ -64,7 +64,7 @@ export default function AgentWorkspace() {
   return (
     <main className="agent-shell">
       <header className="agent-topbar">
-        <Link className="agent-brand" href="/"><span className="agent-mark">A</span><span>The Agent Network<small>وكيلك الشخصي · مساحة العمل</small></span></a>
+        <Link className="agent-brand" href="/"><span className="agent-mark">A</span><span>The Agent Network<small>وكيلك الشخصي · مساحة العمل</small></span></Link>
         <span className="agent-status"><i /> نموذج تجريبي مباشر</span>
       </header>
 
