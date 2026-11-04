@@ -7,6 +7,7 @@ import {
   POST as createApprovalRequest,
 } from "../../app/api/v1/agents/[agentId]/approvals/route";
 import { PATCH as decideApproval } from "../../app/api/v1/approvals/[approvalId]/decision/route";
+import { POST as revokeGrant } from "../../app/api/v1/agents/[agentId]/grants/[grantId]/revoke/route";
 
 vi.mock("next/headers", () => ({
   headers: vi.fn(async () => new Headers()),
@@ -421,6 +422,53 @@ suite("exact-payload action approval workflow (PostgreSQL integration)", () => {
         where: {
           ownerId: organizationId,
           action: "action_approval.approved",
+          targetId: payload.data.id,
+        },
+      }),
+    ).resolves.toBe(1);
+  });
+
+
+  it("serializes an approval decision against grant revocation and invalidates approved payloads", async () => {
+    const grant = await createGrant("approval-revoke-race");
+    const response = await submitApproval(
+      grant.id,
+      `approval-revoke-race-${suffix}`,
+      { message: "Only approve while grant remains active" },
+    );
+    expect(response.status).toBe(201);
+    const payload = await response.json();
+
+    setSessionUser(ownerId);
+    const [decision, revocation] = await Promise.all([
+      decideApproval(
+        patchRequest({ decision: "APPROVE" }),
+        decisionContext(payload.data.id),
+      ),
+      revokeGrant(
+        new Request("http://localhost/api/v1/agents/grants/revoke", {
+          method: "POST",
+          headers: { Origin: "http://localhost" },
+        }),
+        { params: Promise.resolve({ agentId, grantId: grant.id }) },
+      ),
+    ]);
+
+    expect(revocation.status).toBe(200);
+    expect([200, 409]).toContain(decision.status);
+    const stored = await prisma.actionApproval.findUniqueOrThrow({
+      where: { id: payload.data.id },
+      select: { status: true, decisionReason: true },
+    });
+    expect(stored).toEqual({
+      status: "CANCELLED",
+      decisionReason: "GRANT_REVOKED",
+    });
+    await expect(
+      prisma.auditEvent.count({
+        where: {
+          ownerId: organizationId,
+          action: "action_approval.cancelled",
           targetId: payload.data.id,
         },
       }),
