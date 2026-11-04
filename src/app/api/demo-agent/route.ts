@@ -3,7 +3,6 @@ import { NextResponse } from "next/server";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-type Mode = "search" | "ad";
 type Profile = { displayName?: string; tone?: string; goal?: string };
 
 function cleanText(value: string) {
