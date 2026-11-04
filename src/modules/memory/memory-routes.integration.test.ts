@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { GET, POST } from "@/app/api/v1/me/memories/route";
-import { DELETE, PATCH } from "@/app/api/v1/me/memories/[memoryId]/route";
+import { DELETE, PATCH } from "@/app/api/v1/me/memories/[memoryId]/route";\nimport { purgeExpiredPersonalMemories } from "@/modules/runtime/retention";
 
 vi.mock("next/headers", () => ({ headers: vi.fn(async () => new Headers()) }));
 vi.mock("@/lib/auth", () => ({ auth: { api: { getSession: vi.fn() } } }));
