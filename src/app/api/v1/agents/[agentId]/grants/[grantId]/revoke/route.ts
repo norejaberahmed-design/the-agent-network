@@ -23,6 +23,17 @@ export async function POST(request: Request, context: RouteContext) {
 
   const correlationId = randomUUID();
   const result = await prisma.$transaction(async (tx) => {
+    if (access.ownerType === "ORGANIZATION") {
+      const membership = await tx.membership.findUnique({
+        where: { organizationId_userId: { organizationId: access.ownerId, userId: session.user.id } },
+        select: { role: true },
+      });
+      if (!membership || !["OWNER", "ADMIN"].includes(membership.role)) {
+        throw new Error("ACCESS_REVOKED");
+      }
+    } else if (access.ownerId !== session.user.id) {
+      throw new Error("ACCESS_REVOKED");
+    }
     const grant = await tx.permissionGrant.findFirst({
       where: { id: grantId, agentId },
       select: { id: true, status: true, version: true },
