@@ -293,8 +293,12 @@ async function failRun(
 
   let updated = false;
   await prisma.$transaction(async (tx) => {
+    await lockAgentRuntime(tx, run.agentId);
+    await lockGrantRows(tx, run.grantIds);
+    const current = await tx.agentRun.findFirst({ where: { id: run.id, status: "PLANNING", workerId } });
+    if (!current) return;
     const changed = await tx.agentRun.updateMany({
-      where: { id: run.id, status: "PLANNING", workerId },
+      where: { id: current.id, status: "PLANNING", workerId },
       data: {
         status: nextStatus,
         errorCode: code,
@@ -308,23 +312,23 @@ async function failRun(
     if (changed.count !== 1) return;
     updated = true;
 
-    if (!shouldRetry) await releaseReservations(tx, run);
+    if (!shouldRetry) await releaseReservations(tx, current);
 
     await tx.auditEvent.create({
       data: {
-        agentId: run.agentId,
-        ownerType: run.ownerType,
-        ownerId: run.ownerId,
+        agentId: current.agentId,
+        ownerType: current.ownerType,
+        ownerId: current.ownerId,
         action: shouldRetry ? "agent.run.retry_scheduled" : "agent.run.failed",
         targetType: "AgentRun",
-        targetId: run.id,
+        targetId: current.id,
         outcome: "FAILED",
-        policyVersion: String(run.agentConfigurationVersion),
+        policyVersion: String(current.agentConfigurationVersion),
         correlationId: randomUUID(),
         metadata: {
           errorCode: code,
-          attemptCount: run.attemptCount,
-          maxAttempts: run.maxAttempts,
+          attemptCount: current.attemptCount,
+          maxAttempts: current.maxAttempts,
           reservationReleased: !shouldRetry,
         },
       },
