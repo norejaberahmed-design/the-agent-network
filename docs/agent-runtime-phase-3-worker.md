@@ -14,7 +14,8 @@ Request bodies are bounded to 4 KiB. Worker identifiers and failure codes are va
 
 ## Concurrency and recovery
 
-- A PostgreSQL transaction-scoped advisory lock serializes state-changing operations per agent.
+- A PostgreSQL transaction-scoped advisory lock serializes queue, grant, lifecycle, and worker transitions per agent; grant rows are then locked in deterministic order.
+- Claim revalidates the requester’s organization membership and role. Role downgrade/removal cancels queued/claimed work and releases reservations.
 - Grant rows are locked in deterministic order before claim, cancellation, revocation, and terminal reservation release.
 - Claim uses a compare-and-set transition from `QUEUED` to `CLAIMED`; a second worker cannot claim the same run.
 - Claim rechecks agent lifecycle, persisted capabilities, grant ownership, purpose, target, public data scope, status, expiry, and reserved capacity.
