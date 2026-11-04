@@ -87,7 +87,8 @@ export default async function AgentDetailPage({
   }) : [];
 
   const runtimeConfigured = Boolean(
-    process.env.OPENAI_API_KEY && process.env.OPENAI_AGENT_MODEL && process.env.AGENT_WORKER_SECRET,
+    process.env.OPENAI_API_KEY && process.env.OPENAI_AGENT_MODEL && process.env.AGENT_WORKER_SECRET &&
+    process.env.AGENT_WORKER_SCHEDULER_ENABLED === "true",
   );
 
   const grantOptions = grants
