@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { isAuthorizedAgentWorker, readBoundedWorkerJson } from "@/lib/worker-auth";
+import { getAuthorizedAgentWorkerId, isAuthorizedAgentWorker, readBoundedWorkerJson } from "@/lib/worker-auth";
 
 const previousToken = process.env.AGENT_WORKER_TOKEN;
 afterEach(() => {
@@ -10,9 +10,13 @@ afterEach(() => {
 describe("internal worker authentication", () => {
   it("accepts only the configured bearer token", () => {
     process.env.AGENT_WORKER_TOKEN = "a".repeat(40);
-    expect(isAuthorizedAgentWorker(new Request("http://localhost", {
+    const authorized = new Request("http://localhost", {
       headers: { Authorization: `Bearer ${"a".repeat(40)}` },
-    }))).toBe(true);
+    });
+    expect(isAuthorizedAgentWorker(authorized)).toBe(true);
+    expect(getAuthorizedAgentWorkerId(authorized)).toBe(getAuthorizedAgentWorkerId(new Request("http://localhost", {
+      headers: { Authorization: `Bearer ${"a".repeat(40)}` },
+    })));
     expect(isAuthorizedAgentWorker(new Request("http://localhost", {
       headers: { Authorization: `Bearer ${"b".repeat(40)}` },
     }))).toBe(false);
@@ -21,6 +25,7 @@ describe("internal worker authentication", () => {
   it("fails closed when the secret is absent or too short", () => {
     delete process.env.AGENT_WORKER_TOKEN;
     expect(isAuthorizedAgentWorker(new Request("http://localhost"))).toBe(false);
+    expect(getAuthorizedAgentWorkerId(new Request("http://localhost"))).toBeNull();
     process.env.AGENT_WORKER_TOKEN = "short";
     expect(isAuthorizedAgentWorker(new Request("http://localhost", {
       headers: { Authorization: "Bearer short" },
