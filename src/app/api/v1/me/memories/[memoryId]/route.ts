@@ -54,7 +54,8 @@ export async function PATCH(request: Request, context: RouteContext) {
     return result;
   });
   if (!saved) return apiError("CONFLICT", 409);
-  const { userId, ...publicMemory } = saved;\n  void userId;
+  const { userId, ...publicMemory } = saved;
+  void userId;
   return Response.json({ data: publicMemory, correlationId }, { headers: { "Cache-Control": "no-store" } });
 }
 
