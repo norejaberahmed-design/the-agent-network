@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { Prisma, type AgentRun } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { lockAgentRuntime } from "./locks";
 
 type Tx = Prisma.TransactionClient;
 
@@ -93,6 +94,7 @@ async function claimOne(tx: Tx, workerId: string, leaseMs: number, now: Date) {
     orderBy: [{ availableAt: "asc" }, { createdAt: "asc" }],
   });
   if (!candidate) return null;
+  await lockAgentRuntime(tx, candidate.agentId);
 
   // Lock the grant rows before checking them. Revocation updates the same rows,
   // so either revocation wins and this claim sees it, or this claim wins and
@@ -259,6 +261,7 @@ export async function failAgentRun(
       where: { id: runId, workerId, status: "CLAIMED", leaseExpiresAt: { gt: now } },
     });
     if (!initial) return null;
+    await lockAgentRuntime(tx, initial.agentId);
     await lockRunGrants(tx, initial);
     const run = await tx.agentRun.findFirst({
       where: { id: runId, workerId, status: "CLAIMED", leaseExpiresAt: { gt: now } },
