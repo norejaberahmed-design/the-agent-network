@@ -16,6 +16,12 @@ vi.mock("@/lib/request-security", () => ({
   isTrustedMutationRequest: vi.fn(async () => true),
 }));
 
+const previousRuntimeEnv = {
+  apiKey: process.env.OPENAI_API_KEY,
+  model: process.env.OPENAI_AGENT_MODEL,
+  workerSecret: process.env.AGENT_WORKER_SECRET,
+  scheduler: process.env.AGENT_WORKER_SCHEDULER_ENABLED,
+};
 const enabled = process.env.RUN_DB_INTEGRATION === "1";
 const suite = enabled ? describe : describe.skip;
 const suffix = randomUUID();
@@ -52,6 +58,10 @@ const request = (body: unknown) => new Request("http://localhost/api/v1/agents/r
 
 suite("agent run queue API (PostgreSQL integration)", () => {
   beforeAll(async () => {
+    process.env.OPENAI_API_KEY = "test-only-not-a-real-key";
+    process.env.OPENAI_AGENT_MODEL = "test-model";
+    process.env.AGENT_WORKER_SECRET = "test-only-worker-secret-with-32-chars";
+    process.env.AGENT_WORKER_SCHEDULER_ENABLED = "true";
     await prisma.user.createMany({
       data: [
         { id: ownerId, name: "Run Owner", email: `run-owner-${suffix}@example.invalid` },
@@ -154,6 +164,10 @@ suite("agent run queue API (PostgreSQL integration)", () => {
     await prisma.agent.deleteMany({ where: { id: agentId } });
     await prisma.user.deleteMany({ where: { id: { in: [ownerId, outsiderId, rateOwnerId] } } });
     vi.mocked(auth.api.getSession).mockReset();
+    if (previousRuntimeEnv.apiKey === undefined) delete process.env.OPENAI_API_KEY; else process.env.OPENAI_API_KEY = previousRuntimeEnv.apiKey;
+    if (previousRuntimeEnv.model === undefined) delete process.env.OPENAI_AGENT_MODEL; else process.env.OPENAI_AGENT_MODEL = previousRuntimeEnv.model;
+    if (previousRuntimeEnv.workerSecret === undefined) delete process.env.AGENT_WORKER_SECRET; else process.env.AGENT_WORKER_SECRET = previousRuntimeEnv.workerSecret;
+    if (previousRuntimeEnv.scheduler === undefined) delete process.env.AGENT_WORKER_SCHEDULER_ENABLED; else process.env.AGENT_WORKER_SCHEDULER_ENABLED = previousRuntimeEnv.scheduler;
   });
 
   it("requires authentication and denies users outside the owner boundary", async () => {
