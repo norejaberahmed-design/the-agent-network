@@ -19,7 +19,6 @@ export function OrganizationCreateForm() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name }),
       });
-      const body = await response.json();
       if (!response.ok) {
         setError("تعذر إنشاء مساحة الشركة. تحقق من البيانات وحاول مرة أخرى.");
         return;

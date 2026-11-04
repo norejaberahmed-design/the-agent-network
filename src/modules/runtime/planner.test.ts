@@ -150,7 +150,7 @@ describe("agent planning boundary", () => {
   });
 
   it("passes external source text in a distinct untrusted field", async () => {
-    const generatePlan = vi.fn(async (_input: AgentPlanningRequest) => ({
+    const generatePlan = vi.fn(async () => ({
       summary: "Review source safely.",
       steps: [{ id: "step-1", action: "ASK_OWNER", description: "Ask owner to review.", input: {} }],
     }));
