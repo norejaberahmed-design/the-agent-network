@@ -29,7 +29,7 @@ type AuthorizationSnapshot = {
   agentPurpose: string;
   allowedActions: AgentPlanningRequest["trustedContext"]["allowedActions"];
   configurationVersion: number;
-  persona?: { displayName: string; tone: string; goal: string; memoryContextEnabled: boolean };
+  persona?: { displayName: string; tone: string; goal: string };
   personalMemory?: NonNullable<AgentPlanningRequest["trustedContext"]["personalMemory"]>;
 };
 
