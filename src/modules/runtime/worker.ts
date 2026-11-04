@@ -139,7 +139,7 @@ async function claimNextRun(
   now: Date,
 ): Promise<ClaimResult | null> {
   let lastTerminal: Exclude<ClaimResult, { kind: "CLAIMED" }> | null = null;
-  // Candidate discovery is intentionally unlocked. The per-agent advisory lock,
+  // Candidate discovery is intentionally unlocked. The per-agent row lock,
   // followed by deterministic grant row locks and a conditional update, is the
   // linearization point shared with cancellation, lifecycle and grant revocation.
   for (let attempt = 0; attempt < 10; attempt += 1) {
