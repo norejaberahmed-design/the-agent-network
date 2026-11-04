@@ -67,7 +67,7 @@ export async function DELETE(request: Request, context: RouteContext) {
   const deleted = await prisma.$transaction(async (tx) => {
     const result = await tx.personalMemory.updateMany({
       where: { id: memoryId, userId: session.user.id, status: { not: "DELETED" } },
-      data: { status: "DELETED", content: "[deleted]", sourceReference: null, confidence: null, version: { increment: 1 } },
+      data: { status: "DELETED", content: "[deleted]", purpose: "[deleted]", sourceReference: null, confidence: null, taskContextRunId: null, confirmedAt: null, lastObservedAt: null, expiresAt: null, version: { increment: 1 } },
     });
     if (result.count !== 1) return false;
     await tx.auditEvent.create({
