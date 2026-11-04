@@ -95,7 +95,7 @@ export function AgentProfileEditor({
       <div>
         <h2>ملف الوكيل وهويته</h2>
         <p className="muted" style={{ margin: "6px 0 0" }}>
-          هذه البيانات تصف هوية الوكيل وغرضه وطريقة تواصله. لا تمنحه صلاحية تنفيذ إجراءات خارجية.
+          تُستخدم هذه التعليمات لتوجيه تخطيط الوكيل وصياغته. لا تمنحه صلاحية تنفيذ إجراءات خارجية أو تجاوز التفويضات.
         </p>
       </div>
       {!canManage ? (
@@ -107,8 +107,8 @@ export function AgentProfileEditor({
             <input id="agent-profile-name" value={name} minLength={2} maxLength={100} required onChange={(event) => setName(event.target.value)} />
           </div>
           <div className="field">
-            <label htmlFor="agent-profile-purpose">الغرض والمهام الأساسية</label>
-            <textarea id="agent-profile-purpose" value={purpose} minLength={3} maxLength={1000} required rows={4} onChange={(event) => setPurpose(event.target.value)} />
+            <label htmlFor="agent-profile-purpose">تعليمات الهوية الشخصية والسلوك</label>
+            <textarea id="agent-profile-purpose" value={purpose} minLength={3} maxLength={1000} required rows={5} onChange={(event) => setPurpose(event.target.value)} placeholder="صف كيف تريد لوكيلك أن يفكر ويتواصل ويمثلك. مثال: كن مباشراً، تحقّق من المصادر، افصل الحقائق عن التوقعات، ولا تراسل أحداً أو تنفذ إجراءً خارجياً دون موافقتي." />
           </div>
           <div className="field">
             <label htmlFor="agent-profile-description">وصف عام يمكن عرضه للآخرين</label>
