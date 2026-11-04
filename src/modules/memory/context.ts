@@ -11,6 +11,7 @@ export type PersonalMemoryContextItem = {
   sourceReference: string | null;
   expiresAt: Date | null;
   taskContextRunId: string | null;
+  status?: "ACTIVE" | "ARCHIVED" | "DELETED";
 };
 
 export type PersonalContextOptions = {
