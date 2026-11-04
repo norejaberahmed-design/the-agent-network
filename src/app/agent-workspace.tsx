@@ -13,7 +13,7 @@ type PermissionGrant = {
 };
 type AgentRun = {
   id: string; task: string; status: string; planSummary?: string | null;
-  planSources?: Array<{ url: string; title: string }> | null;
+  planSources?: Array<{ url: string; title: string; evidence?: Array<{ claim: string }> }> | null;
   steps?: Array<{ stepId: string; action: string; description: string; status: string }>;
   errorCode?: string | null; createdAt: string; completedAt?: string | null;
 };
@@ -289,9 +289,9 @@ export default function AgentWorkspace() {
             <h2>{runtimeRun.status === "PLANNED" ? "أعد الوكيل خطة بحث أولية" : runtimeRun.status === "QUEUED" ? "المهمة في قائمة الانتظار" : runtimeRun.status === "PLANNING" ? "العامل يعالج المهمة" : runtimeRun.status === "FAILED" || runtimeRun.status === "DEAD_LETTER" ? "تعذر إكمال المهمة" : runtimeRun.status === "CANCELLED" ? "أُلغيت المهمة" : "حالة المهمة"}</h2>
             {runtimeRun.planSummary ? <p>{runtimeRun.planSummary}</p> : null}
             {runtimeRun.steps?.length ? <div className="agent-search-results">{runtimeRun.steps.map((step, index) => <article key={step.stepId}><span>{String(index + 1).padStart(2, "0")}</span><div><strong>{step.action}</strong><p>{step.description}</p><small>{step.status}</small></div></article>)}</div> : null}
-            {runtimeRun.planSources?.length ? <div className="agent-search-results">{runtimeRun.planSources.map(source => <article key={source.url}><span>↗</span><div><a href={source.url} target="_blank" rel="noreferrer">{source.title}</a><small>{new URL(source.url).hostname}</small></div></article>)}</div> : null}
+            {runtimeRun.planSources?.length ? <div className="agent-search-results">{runtimeRun.planSources.map(source => <article key={source.url}><span>↗</span><div><a href={source.url} target="_blank" rel="noreferrer">{source.title}</a><small>{new URL(source.url).hostname} · مصدر أرجعه بحث الويب</small>{source.evidence?.map((item, index) => <p key={index}>ادعاء مرتبط بالمصدر: {item.claim}</p>)}</div></article>)}</div> : null}
             {runtimeRun.errorCode ? <p role="status">رمز الحالة: {runtimeRun.errorCode}</p> : null}
-            <p className="agent-disclaimer">هذه خطة مقترحة ومصادر بحث أرجعها مزود الذكاء الاصطناعي؛ لا تعني التحقق المستقل من كل ادعاء، ولا تنفذ إجراءات خارجية.</p>
+            <p className="agent-disclaimer">هذه خطة مقترحة. الادعاءات مرتبطة بروابط أعادها بحث الويب، لكنها لم تخضع بعد لفحص مستقل لمحتوى الصفحات أو صحة المعلومات. لا ينفذ الوكيل إجراءات خارجية.</p>
           </section>}
           {response && <section className="agent-result-card" aria-live="polite">
             <div className="agent-result-heading"><span className="agent-overline">نتيجة المهمة</span><span className="agent-result-tag">{response.mode === "search" ? "بحث ويب" : "مسودة إعلان"}</span></div>
