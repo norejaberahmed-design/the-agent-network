@@ -8,7 +8,7 @@ Status: implemented as a server-side planning worker. It does not execute plan s
 - Authentication: Authorization: Bearer <AGENT_WORKER_SECRET>, compared in constant time.
 - One invocation claims and processes at most one run, and also purges expired run records.
 - The repository includes an opt-in GitHub Actions scheduler (`.github/workflows/agent-worker.yml`) that invokes one worker iteration hourly and can also be started manually. It remains inert until the operator adds `APP_URL` and `AGENT_WORKER_SECRET` as repository secrets after deployment. Scheduled workflows run from the default branch, so this workflow becomes active only after its reviewed PR is merged. Do not call the endpoint from browser code. Keep the secret in the scheduler secret store, never in a URL or client bundle.
-- The endpoint is disabled unless AGENT_WORKER_SECRET, OPENAI_API_KEY, and OPENAI_AGENT_MODEL are configured.
+- The endpoint is disabled unless AGENT_WORKER_SECRET, OPENAI_API_KEY, and OPENAI_AGENT_MODEL are configured. The run-creation API additionally requires AGENT_WORKER_SCHEDULER_ENABLED=true so users cannot queue work into a worker pipeline that has not been activated.
 
 ## Required environment
 
@@ -16,6 +16,7 @@ Status: implemented as a server-side planning worker. It does not execute plan s
 - AGENT_WORKER_SECRET — long random secret used only by the scheduler.
 - OPENAI_API_KEY — server-only API key; never expose it to the browser or commit it.
 - OPENAI_AGENT_MODEL — explicit model name enabled for the API project.
+- AGENT_WORKER_SCHEDULER_ENABLED — set to `true` only after the trusted scheduler workflow is deployed and its required repository secrets are configured. The application rejects new run submissions unless all provider, worker-secret, and scheduler readiness settings are present.
 - OPENAI_AGENT_MAX_DAILY_RUNS — global rolling 24-hour ceiling; defaults to 20, 0 disables processing, maximum accepted value is 1000.
 
 No key or secret is stored in this repository. CI uses fake providers and does not call OpenAI.
