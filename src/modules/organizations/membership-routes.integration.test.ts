@@ -109,6 +109,7 @@ suite("organization membership management APIs (PostgreSQL integration)", () => 
         ownerId: { in: [organizationId, otherOrganizationId] },
       },
     });
+    await prisma.agent.deleteMany({ where: { id: membershipAgentId } });
     await prisma.invitation.deleteMany({
       where: { organizationId: { in: [organizationId, otherOrganizationId] } },
     });
@@ -301,7 +302,47 @@ suite("organization membership management APIs (PostgreSQL integration)", () => 
     );
     expect(response.status).toBe(403);
   });
-  it("revokes pending invitations created by a member when the owner removes that member", async () => {
+  it("revokes pending invitations and cancels queued work when the owner removes that member", async () => {
+    await prisma.agent.create({
+      data: {
+        id: membershipAgentId,
+        ownerType: "ORGANIZATION",
+        organizationOwnerId: organizationId,
+        name: "Membership Runtime Agent",
+        purpose: "Research public suppliers for the organization.",
+        status: "ACTIVE",
+      },
+    });
+    await prisma.permissionGrant.create({
+      data: {
+        id: membershipGrantId,
+        agentId: membershipAgentId,
+        purpose: "Research public suppliers for the owner.",
+        actionScope: ["SEARCH_PUBLIC_WEB"],
+        targetScope: ["PUBLIC_WEB"],
+        dataScope: ["PUBLIC_PROFILE"],
+        expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+        maxUses: 1,
+        reservedUses: 1,
+      },
+    });
+    await prisma.agentRun.create({
+      data: {
+        id: membershipRunId,
+        agentId: membershipAgentId,
+        requesterUserId: adminId,
+        ownerType: "ORGANIZATION",
+        ownerId: organizationId,
+        task: "Research public supplier information.",
+        purpose: "Research public suppliers for the owner.",
+        target: "PUBLIC_WEB",
+        authorizedActions: ["SEARCH_PUBLIC_WEB"],
+        grantIds: [membershipGrantId],
+        requestDigest: "e".repeat(64),
+        idempotencyKey: `membership-run-key-${suffix}`,
+        status: "QUEUED",
+      },
+    });
     setSessionUser(ownerId);
     const response = await removeMember(
       request("http://localhost", "DELETE"),
@@ -318,6 +359,10 @@ suite("organization membership management APIs (PostgreSQL integration)", () => 
       reservationId: null,
       reservationExpiresAt: null,
     });
+    const run = await prisma.agentRun.findUniqueOrThrow({ where: { id: membershipRunId } });
+    expect(run).toMatchObject({ status: "CANCELLED", errorCode: "REQUESTER_ACCESS_REVOKED" });
+    const grant = await prisma.permissionGrant.findUniqueOrThrow({ where: { id: membershipGrantId } });
+    expect(grant.reservedUses).toBe(0);
     await expect(
       prisma.auditEvent.count({
         where: {
