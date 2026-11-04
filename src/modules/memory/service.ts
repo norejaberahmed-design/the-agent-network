@@ -18,7 +18,7 @@ export async function createInferredMemory(input: InferredMemoryInput) {
   if (!Number.isFinite(input.confidence) || input.confidence < 0.01 || input.confidence > 0.99) {
     throw new Error("INVALID_MEMORY_CONFIDENCE");
   }
-  if (input.expiresAt <= new Date()) throw new Error("INVALID_MEMORY_EXPIRY");
+  const now = new Date();\n  if (input.expiresAt <= now || input.expiresAt.getTime() > now.getTime() + 90 * 24 * 60 * 60 * 1000) {\n    throw new Error("INVALID_MEMORY_EXPIRY");\n  }
 
   const correlationId = randomUUID();
   return prisma.$transaction(async (tx) => {
