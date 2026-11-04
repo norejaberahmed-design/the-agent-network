@@ -86,6 +86,10 @@ export default async function AgentDetailPage({
     take: 50,
   }) : [];
 
+  const runtimeConfigured = Boolean(
+    process.env.OPENAI_API_KEY && process.env.OPENAI_AGENT_MODEL && process.env.AGENT_WORKER_SECRET,
+  );
+
   const grantOptions = grants
     .filter((grant) =>
       grant.status === "ACTIVE" &&
@@ -149,6 +153,7 @@ export default async function AgentDetailPage({
         <RunManager
           agentId={agentId}
           active={access.agent.status === "ACTIVE"}
+          runtimeConfigured={runtimeConfigured}
           initialRuns={runs.map((run) => ({ ...run, planSources: run.planSources as Array<{ url: string; title: string }> | null, createdAt: run.createdAt.toISOString() }))}
           grantOptions={grantOptions}
         />
