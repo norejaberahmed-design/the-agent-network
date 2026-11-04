@@ -123,7 +123,7 @@ export default async function AgentDetailPage({
           name: access.agent.name,
           purpose: access.agent.purpose,
           publicDescription: access.agent.publicDescription,
-          primaryLanguage: access.agent.primaryLanguage,
+          primaryLanguage: access.agent.primaryLanguage === "en" ? "en" : "ar",
           supportedLanguages: access.agent.supportedLanguages,
           configurationVersion: access.agent.configurationVersion,
         }}
