@@ -278,7 +278,7 @@ export default function AgentWorkspace() {
                 </label>
               </div>
             )}
-            <div className="agent-compose-bottom"><span>{mode === "search" ? "مهمة محفوظة في حسابك · {task.length}/4000" : `مسودة محلية أولية · ${task.length}/1200`}</span><button onClick={() => void runTask()} disabled={busy || !task.trim()}>{busy ? "جارٍ العمل..." : "ابدأ المهمة"} <b>←</b></button></div>
+            <div className="agent-compose-bottom"><span>{mode === "search" ? `مهمة محفوظة في حسابك · ${task.length}/4000` : `مسودة محلية أولية · ${task.length}/1200`}</span><button onClick={() => void runTask()} disabled={busy || !task.trim()}>{busy ? "جارٍ العمل..." : "ابدأ المهمة"} <b>←</b></button></div>
           </div>
 
           {!response && !busy && <div className="agent-suggestions"><span>جرّب أن تطلب</span>{starterPrompts.map(p => <button key={p} onClick={() => { setMode(p.includes("إعلان") ? "ad" : "search"); setTask(p); }}>{p} <b>↗</b></button>)}</div>}
