@@ -6,6 +6,7 @@ import { isTrustedMutationRequest } from "@/lib/request-security";
 import { prisma } from "@/lib/prisma";
 import { getAgentAccess } from "@/modules/agents/access";
 import { createPermissionGrantSchema } from "@/modules/permissions/contract";
+import { lockAgentRuntime } from "@/modules/runtime/locks";
 
 export const runtime = "nodejs";
 
@@ -80,6 +81,7 @@ export async function POST(request: Request, context: RouteContext) {
 
   const correlationId = randomUUID();
   const grant = await prisma.$transaction(async (tx) => {
+    await lockAgentRuntime(tx, agentId);
     const created = await tx.permissionGrant.create({
       data: {
         agentId,
