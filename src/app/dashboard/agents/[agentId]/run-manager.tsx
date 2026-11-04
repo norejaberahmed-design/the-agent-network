@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 type GrantOption = {
@@ -50,6 +50,8 @@ export function RunManager({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+
+  useEffect(() => setRuns(initialRuns), [initialRuns]);
 
   async function queueRun(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
