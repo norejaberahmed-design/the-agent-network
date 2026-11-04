@@ -6,6 +6,7 @@ import { isTrustedMutationRequest } from "@/lib/request-security";
 import { prisma } from "@/lib/prisma";
 import { getAgentAccess } from "@/modules/agents/access";
 import { upsertFieldPolicySchema } from "@/modules/agents/field-policy-contract";
+import { lockAgentRuntime } from "@/modules/runtime/locks";
 
 export const runtime = "nodejs";
 
@@ -59,6 +60,16 @@ export async function POST(request: Request, context: RouteContext) {
 
   const correlationId = randomUUID();
   const policy = await prisma.$transaction(async (tx) => {
+    await lockAgentRuntime(tx, agentId);
+    if (access.ownerType === "ORGANIZATION") {
+      const membership = await tx.membership.findUnique({
+        where: { organizationId_userId: { organizationId: access.ownerId, userId: session.user.id } },
+        select: { role: true },
+      });
+      if (!membership || !["OWNER", "ADMIN"].includes(membership.role)) return null;
+    } else if (access.ownerId !== session.user.id) {
+      return null;
+    }
     const current = await tx.agentFieldPolicy.findUnique({
       where: { agentId_fieldKey: { agentId, fieldKey: parsed.data.fieldKey } },
       select: { policyVersion: true },
@@ -115,6 +126,8 @@ export async function POST(request: Request, context: RouteContext) {
     });
     return saved;
   });
+
+  if (!policy) return apiError("FORBIDDEN", 403);
 
   return Response.json(
     { data: policy, correlationId },
