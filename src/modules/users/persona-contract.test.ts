@@ -24,7 +24,15 @@ describe("updatePersonaSchema", () => {
     expect(updatePersonaSchema.safeParse({ ...valid, apiKey: "secret" }).success).toBe(false);
   });
 
-  it("accepts explicit opt-in for personal memory context", () => {\n    expect(updatePersonaSchema.safeParse({ ...valid, memoryContextEnabled: true }).success).toBe(true);\n  });\n\n  it("rejects a non-boolean memory context preference", () => {\n    expect(updatePersonaSchema.safeParse({ ...valid, memoryContextEnabled: "yes" }).success).toBe(false);\n  });\n\n  it("rejects an oversized goal", () => {
+  it("accepts explicit opt-in for personal memory context", () => {
+    expect(updatePersonaSchema.safeParse({ ...valid, memoryContextEnabled: true }).success).toBe(true);
+  });
+
+  it("rejects a non-boolean memory context preference", () => {
+    expect(updatePersonaSchema.safeParse({ ...valid, memoryContextEnabled: "yes" }).success).toBe(false);
+  });
+
+  it("rejects an oversized goal", () => {
     expect(updatePersonaSchema.safeParse({ ...valid, goal: "x".repeat(241) }).success).toBe(false);
   });
 });
