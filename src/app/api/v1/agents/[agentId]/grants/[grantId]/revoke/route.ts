@@ -6,6 +6,7 @@ import { apiError } from "@/lib/api-response";
 import { isTrustedMutationRequest } from "@/lib/request-security";
 import { prisma } from "@/lib/prisma";
 import { getAgentAccess } from "@/modules/agents/access";
+import { lockAgentRuntime } from "@/modules/runtime/locks";
 
 export const runtime = "nodejs";
 
@@ -24,6 +25,7 @@ export async function POST(request: Request, context: RouteContext) {
 
   const correlationId = randomUUID();
   const result = await prisma.$transaction(async (tx) => {
+    await lockAgentRuntime(tx, agentId);
     if (access.ownerType === "ORGANIZATION") {
       const membership = await tx.membership.findUnique({
         where: { organizationId_userId: { organizationId: access.ownerId, userId: session.user.id } },
