@@ -121,7 +121,7 @@ suite("agent lifecycle and discovery activation (PostgreSQL integration)", () =>
       },
     });
     await prisma.agent.deleteMany({
-      where: { id: { in: [personalAgentId, organizationAgentId, revokedAgentId] } },
+      where: { id: { in: [personalAgentId, organizationAgentId, revokedAgentId, revocableAgentId] } },
     });
     await prisma.membership.deleteMany({ where: { organizationId } });
     await prisma.organization.deleteMany({ where: { id: organizationId } });
