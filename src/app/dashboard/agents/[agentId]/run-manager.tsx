@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 type GrantOption = {
+  id: string;
   purpose: string;
   target: string;
   actionScope: string[];
@@ -61,6 +62,7 @@ export function RunManager({
         body: JSON.stringify({
           task,
           purpose: grant.purpose,
+          grantId: grant.id,
           target: grant.target,
           idempotencyKey: crypto.randomUUID(),
           providerConsent: true,
