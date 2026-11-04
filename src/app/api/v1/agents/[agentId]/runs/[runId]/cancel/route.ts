@@ -22,6 +22,17 @@ export async function POST(request: Request, context: RouteContext) {
   const correlationId = randomUUID();
   try {
     const cancelled = await prisma.$transaction(async (tx) => {
+      if (access.ownerType === "ORGANIZATION") {
+        const membership = await tx.membership.findUnique({
+          where: { organizationId_userId: { organizationId: access.ownerId, userId: session.user.id } },
+          select: { role: true },
+        });
+        if (!membership || !["OWNER", "ADMIN", "AGENT_MANAGER"].includes(membership.role)) {
+          throw new Error("ACCESS_REVOKED");
+        }
+      } else if (access.ownerId !== session.user.id) {
+        throw new Error("ACCESS_REVOKED");
+      }
       const run = await tx.agentRun.findFirst({
         where: { id: runId, agentId },
         select: { id: true, status: true, grantIds: true },
@@ -67,6 +78,7 @@ export async function POST(request: Request, context: RouteContext) {
       { headers: { "Cache-Control": "no-store" } },
     );
   } catch (error) {
+    if (error instanceof Error && error.message === "ACCESS_REVOKED") return apiError("FORBIDDEN", 403);
     if (error instanceof Error && (
       error.message === "RUN_NOT_CANCELLABLE" ||
       error.message === "GRANT_RESERVATION_MISSING"
