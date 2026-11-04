@@ -6,7 +6,7 @@ import { isTrustedMutationRequest } from "@/lib/request-security";
 import { prisma } from "@/lib/prisma";
 import { getAgentAccess } from "@/modules/agents/access";
 import { digestAgentRunRequest, createAgentRunSchema } from "@/modules/runtime/run-contract";
-import { lockAgentRuntime, lockGrantRows } from "@/modules/runtime/locks";
+import { lockAgentRuntime, lockGrantRows, lockUserRuntime } from "@/modules/runtime/locks";
 
 export const runtime = "nodejs";
 
@@ -143,7 +143,7 @@ export async function POST(request: Request, context: RouteContext) {
     const created = await prisma.$transaction(async (tx) => {
       // Serialize per-requester and per-agent quota checks without coupling them
       // to row locks used by grant mutation transactions.
-      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`agent-run-user:${session.user.id}`}, 0))`;
+      await lockUserRuntime(tx, session.user.id);
       await lockAgentRuntime(tx, agentId);
 
       const activeAgent = await tx.agent.findFirst({
