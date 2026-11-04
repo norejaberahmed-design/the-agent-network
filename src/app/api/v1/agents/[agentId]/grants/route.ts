@@ -82,6 +82,15 @@ export async function POST(request: Request, context: RouteContext) {
   const correlationId = randomUUID();
   const grant = await prisma.$transaction(async (tx) => {
     await lockAgentRuntime(tx, agentId);
+    if (access.ownerType === "ORGANIZATION") {
+      const membership = await tx.membership.findUnique({
+        where: { organizationId_userId: { organizationId: access.ownerId, userId: session.user.id } },
+        select: { role: true },
+      });
+      if (!membership || !["OWNER", "ADMIN"].includes(membership.role)) return null;
+    } else if (access.ownerId !== session.user.id) {
+      return null;
+    }
     const created = await tx.permissionGrant.create({
       data: {
         agentId,
@@ -152,6 +161,8 @@ export async function POST(request: Request, context: RouteContext) {
     });
     return created;
   });
+
+  if (!grant) return apiError("FORBIDDEN", 403);
 
   return Response.json(
     { data: grant, correlationId, executionEnabled: false },
