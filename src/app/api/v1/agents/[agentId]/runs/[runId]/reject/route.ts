@@ -5,6 +5,7 @@ import { apiError } from "@/lib/api-response";
 import { isTrustedMutationRequest } from "@/lib/request-security";
 import { prisma } from "@/lib/prisma";
 import { getAgentAccess } from "@/modules/agents/access";
+import { lockAgentRuntime } from "@/modules/runtime/locks";
 
 export const runtime = "nodejs";
 
@@ -23,6 +24,18 @@ export async function POST(request: Request, context: RouteContext) {
   const now = new Date();
   try {
     const result = await prisma.$transaction(async (tx) => {
+      await lockAgentRuntime(tx, agentId);
+      if (access.ownerType === "ORGANIZATION") {
+        const membership = await tx.membership.findUnique({
+          where: { organizationId_userId: { organizationId: access.ownerId, userId: session.user.id } },
+          select: { role: true },
+        });
+        if (!membership || !["OWNER", "ADMIN", "AGENT_MANAGER"].includes(membership.role)) {
+          throw new Error("ACCESS_REVOKED");
+        }
+      } else if (access.ownerId !== session.user.id) {
+        throw new Error("ACCESS_REVOKED");
+      }
       const changed = await tx.agentRun.updateMany({
         where: { id: runId, agentId, status: "PLANNED" },
         data: {
@@ -60,6 +73,7 @@ export async function POST(request: Request, context: RouteContext) {
       headers: { "Cache-Control": "no-store" },
     });
   } catch (error) {
+    if (error instanceof Error && error.message === "ACCESS_REVOKED") return apiError("FORBIDDEN", 403);
     if (error instanceof Error && error.message === "PLAN_NOT_REVIEWABLE") {
       return apiError("CONFLICT", 409);
     }
