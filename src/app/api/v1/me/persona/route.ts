@@ -73,7 +73,7 @@ export async function PATCH(request: Request) {
         targetId: session.user.id,
         outcome: "COMPLETED",
         correlationId,
-        metadata: { changedFields: ["displayName", "tone", "goal"], version: saved.version },
+        metadata: { changedFields: ["displayName", "tone", "goal", ...(parsed.data.memoryContextEnabled !== undefined ? ["memoryContextEnabled"] : [])], version: saved.version },
       },
     });
 
