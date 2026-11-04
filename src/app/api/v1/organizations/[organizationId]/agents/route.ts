@@ -1,6 +1,5 @@
 import { randomUUID } from "node:crypto";
 import { headers } from "next/headers";
-import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { apiError } from "@/lib/api-response";
 import { isTrustedMutationRequest } from "@/lib/request-security";

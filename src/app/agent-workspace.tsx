@@ -128,21 +128,24 @@ export default function AgentWorkspace() {
     return () => { active = false; };
   }, [agentId]);
 
+  const runtimeRunId = runtimeRun?.id;
+  const runtimeRunStatus = runtimeRun?.status;
+
   useEffect(() => {
-    if (!agentId || !runtimeRun || !["QUEUED", "PLANNING"].includes(runtimeRun.status)) return;
+    if (!agentId || !runtimeRunId || !["QUEUED", "PLANNING"].includes(runtimeRunStatus ?? "")) return;
     let active = true;
     const refresh = async () => {
       try {
         const response = await fetch(`/api/v1/agents/${encodeURIComponent(agentId)}/runs`, { cache: "no-store" });
         if (!response.ok) return;
         const body = await response.json();
-        const latest = ((body.data || []) as AgentRun[]).find(run => run.id === runtimeRun.id);
+        const latest = ((body.data || []) as AgentRun[]).find(run => run.id === runtimeRunId);
         if (active && latest) setRuntimeRun(latest);
       } catch { /* A later refresh can recover transient network errors. */ }
     };
     const timer = window.setInterval(() => { void refresh(); }, 10000);
     return () => { active = false; window.clearInterval(timer); };
-  }, [agentId, runtimeRun?.id, runtimeRun?.status]);
+  }, [agentId, runtimeRunId, runtimeRunStatus]);
 
   async function saveProfile() {
     setError("");

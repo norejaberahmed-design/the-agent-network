@@ -20,7 +20,6 @@ export function AgentCreateForm() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, purpose, primaryLanguage: "ar" }),
       });
-      const body = await response.json();
       if (!response.ok) {
         setError(response.status === 401 ? "انتهت الجلسة. سجل الدخول مجدداً." : "تعذر إنشاء الوكيل. راجع البيانات وحاول مرة أخرى.");
         return;
