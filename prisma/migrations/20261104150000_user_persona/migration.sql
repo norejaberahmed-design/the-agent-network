@@ -4,7 +4,6 @@ CREATE TABLE "UserPersona" (
   "displayName" VARCHAR(60) NOT NULL,
   "tone" VARCHAR(40) NOT NULL,
   "goal" VARCHAR(240) NOT NULL,
-  "memoryContextEnabled" BOOLEAN NOT NULL DEFAULT false,
   "version" INTEGER NOT NULL DEFAULT 1,
   "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "updatedAt" TIMESTAMP(3) NOT NULL,
