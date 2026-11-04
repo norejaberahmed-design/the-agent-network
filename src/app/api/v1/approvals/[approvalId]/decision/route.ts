@@ -6,6 +6,7 @@ import { apiError } from "@/lib/api-response";
 import { isTrustedMutationRequest } from "@/lib/request-security";
 import { prisma } from "@/lib/prisma";
 import { canApproveAgentActions } from "@/modules/approvals/access";
+import { lockAgentRuntime, lockGrantRows } from "@/modules/runtime/locks";
 import { digestApprovalEnvelope } from "@/modules/approvals/digest";
 
 export const runtime = "nodejs";
@@ -37,7 +38,7 @@ export async function PATCH(request: Request, context: RouteContext) {
   const { approvalId } = await context.params;
   const approvalForAccess = await prisma.actionApproval.findUnique({
     where: { id: approvalId },
-    select: { agentId: true, requesterUserId: true },
+    select: { agentId: true, grantId: true, requesterUserId: true },
   });
   if (!approvalForAccess) return apiError("NOT_FOUND", 404);
   if (approvalForAccess.requesterUserId === session.user.id) {
@@ -49,6 +50,10 @@ export async function PATCH(request: Request, context: RouteContext) {
 
   const now = new Date();
   const result = await prisma.$transaction(async (tx) => {
+    // Use the same agent -> grant lock order as revocation and lifecycle changes.
+    // This makes the authorization check and decision one serialized transition.
+    await lockAgentRuntime(tx, approvalForAccess.agentId);
+    await lockGrantRows(tx, [approvalForAccess.grantId]);
     const approval = await tx.actionApproval.findUnique({
       where: { id: approvalId },
       select: {
