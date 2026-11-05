@@ -1,0 +1,2 @@
+ALTER TABLE "ActionApproval"
+  ADD COLUMN "grantVersion" INTEGER NOT NULL DEFAULT 1;
