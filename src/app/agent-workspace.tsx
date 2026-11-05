@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import MemoryManager from "./memory-manager";
+import MemorySuggestionManager from "./memory-suggestion-manager";
 
 type Mode = "search" | "ad";
 type SearchResult = { title: string; url: string; snippet: string };
@@ -30,6 +31,7 @@ export default function AgentWorkspace() {
   const [tone, setTone] = useState("واضح ومباشر");
   const [goal, setGoal] = useState("البحث عن الفرص وبناء دخل حلال");
   const [memoryContextEnabled, setMemoryContextEnabled] = useState(false);
+  const [memoryLearningEnabled, setMemoryLearningEnabled] = useState(false);
   const [mode, setMode] = useState<Mode>("search");
   const [task, setTask] = useState("");
   const [busy, setBusy] = useState(false);
@@ -48,11 +50,12 @@ export default function AgentWorkspace() {
     try {
       const saved = localStorage.getItem("tan-agent-profile-v1");
       if (saved) {
-        const profile = JSON.parse(saved) as { displayName?: string; tone?: string; goal?: string; memoryContextEnabled?: boolean };
+        const profile = JSON.parse(saved) as { displayName?: string; tone?: string; goal?: string; memoryContextEnabled?: boolean; memoryLearningEnabled?: boolean };
         if (profile.displayName) setDisplayName(profile.displayName);
         if (profile.tone) setTone(profile.tone);
         if (profile.goal) setGoal(profile.goal);
         if (typeof profile.memoryContextEnabled === "boolean") setMemoryContextEnabled(profile.memoryContextEnabled);
+        if (typeof profile.memoryLearningEnabled === "boolean") setMemoryLearningEnabled(profile.memoryLearningEnabled);
       }
     } catch { /* Ignore invalid local profile data. */ }
 
@@ -75,8 +78,11 @@ export default function AgentWorkspace() {
           setTone(body.data.tone);
           setGoal(body.data.goal);
           setMemoryContextEnabled(Boolean(body.data.memoryContextEnabled));
+      setMemoryLearningEnabled(Boolean(body.data.memoryLearningEnabled));
+          setMemoryLearningEnabled(Boolean(body.data.memoryLearningEnabled));
         } else {
           setMemoryContextEnabled(false);
+          setMemoryLearningEnabled(false);
         }
         setProfileStorage("account");
       })
@@ -156,10 +162,10 @@ export default function AgentWorkspace() {
       const response = await fetch("/api/v1/me/persona", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ displayName, tone, goal, memoryContextEnabled }),
+        body: JSON.stringify({ displayName, tone, goal, memoryContextEnabled, memoryLearningEnabled }),
       });
       if (response.status === 401) {
-        localStorage.setItem("tan-agent-profile-v1", JSON.stringify({ displayName, tone, goal, memoryContextEnabled }));
+        localStorage.setItem("tan-agent-profile-v1", JSON.stringify({ displayName, tone, goal, memoryContextEnabled, memoryLearningEnabled }));
         setProfileStorage("device");
         return;
       }
@@ -244,10 +250,15 @@ export default function AgentWorkspace() {
               <input type="checkbox" checked={memoryContextEnabled} onChange={e => setMemoryContextEnabled(e.target.checked)} />
               أسمح للوكيل باستخدام ذاكرتي الشخصية المؤكدة والاستنتاجات عالية الثقة عند إرسال المهام إلى مزود الذكاء الاصطناعي. لا تُرسل المعلومات الخاصة أو شديدة الحساسية، ويمكنني إيقاف ذلك في أي وقت.
             </label>
+            <label className="agent-consent-check">
+              <input type="checkbox" checked={memoryLearningEnabled} onChange={e => setMemoryLearningEnabled(e.target.checked)} />
+              أسمح للوكيل باقتراح تفضيلات تواصل صريحة من نصوص مهامي المصرح بها. ستظل الاقتراحات معلّقة حتى أراجعها وأقبلها بنفسي. هذا الإذن منفصل عن مشاركة الذاكرة مع مزود الذكاء الاصطناعي.
+            </label>
             <button className="agent-save" onClick={() => void saveProfile()} disabled={profileStorage === "checking"}>{profileStorage === "account" ? "حفظ الهوية في حسابك" : "حفظ الهوية"}</button>
             <small className="agent-local-note">{profileStorage === "account" ? "هويتك محفوظة في حسابك ويمكن استعادتها بعد تسجيل الدخول من جهاز آخر." : profileStorage === "device" ? "أنت تستخدم الوضع التجريبي؛ تُحفظ الهوية على هذا الجهاز فقط. سجّل الدخول لحفظها في حسابك." : profileStorage === "error" ? "تعذر التحقق من الحفظ السحابي. لن أدّعي أن الهوية حُفظت في حسابك." : "جارٍ التحقق من مكان حفظ هويتك..."}</small>
           </div>
           <MemoryManager />
+          <MemorySuggestionManager />
           <div className="agent-side-note"><strong>أنت صاحب القرار</strong><p>هذه النسخة لا ترسل رسائل ولا تنفذ عمليات شراء أو تعاقد. ستبقى أي خطوة خارجية بحاجة إلى موافقتك.</p></div>
         </aside>
 
