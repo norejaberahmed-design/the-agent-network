@@ -24,7 +24,7 @@ async function createSourceRun() {
     data: {
       agentId, requesterUserId: ownerId, ownerType: "USER", ownerId,
       task: "I prefer concise responses.", purpose: "Memory suggestion test", target: "PUBLIC_WEB",
-      authorizedActions: [], grantIds: [], requestDigest: "a".repeat(64),
+      authorizedActions: [], grantIds: [], status: "PLANNED", requestDigest: "a".repeat(64),
       idempotencyKey: "suggestion-run-" + randomUUID(),
     },
   });
