@@ -12,6 +12,7 @@ export const updatePersonaSchema = z.object({
   tone: personaToneSchema,
   goal: z.string().trim().min(3).max(240),
   memoryContextEnabled: z.boolean().optional(),
+  memoryLearningEnabled: z.boolean().optional(),
 }).strict();
 
 export type UpdatePersonaInput = z.infer<typeof updatePersonaSchema>;
