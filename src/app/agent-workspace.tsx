@@ -78,7 +78,6 @@ export default function AgentWorkspace() {
           setTone(body.data.tone);
           setGoal(body.data.goal);
           setMemoryContextEnabled(Boolean(body.data.memoryContextEnabled));
-      setMemoryLearningEnabled(Boolean(body.data.memoryLearningEnabled));
           setMemoryLearningEnabled(Boolean(body.data.memoryLearningEnabled));
         } else {
           setMemoryContextEnabled(false);
@@ -175,6 +174,7 @@ export default function AgentWorkspace() {
       setTone(body.data.tone);
       setGoal(body.data.goal);
       setMemoryContextEnabled(Boolean(body.data.memoryContextEnabled));
+      setMemoryLearningEnabled(Boolean(body.data.memoryLearningEnabled));
       setProfileStorage("account");
     } catch (e) {
       setError(e instanceof Error ? e.message : "تعذر حفظ الهوية.");
