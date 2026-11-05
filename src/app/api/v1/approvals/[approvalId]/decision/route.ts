@@ -60,6 +60,7 @@ export async function PATCH(request: Request, context: RouteContext) {
         id: true,
         agentId: true,
         grantId: true,
+        grantVersion: true,
         organizationId: true,
         requesterUserId: true,
         actionType: true,
@@ -85,6 +86,7 @@ export async function PATCH(request: Request, context: RouteContext) {
             status: true,
             revokedAt: true,
             expiresAt: true,
+            version: true,
             actionScope: true,
             targetScope: true,
             dataScope: true,
@@ -174,6 +176,13 @@ export async function PATCH(request: Request, context: RouteContext) {
     }
 
     const grant = approval.grant;
+    if (grant.version !== approval.grantVersion) {
+      return expireOrCancel(
+        "CANCELLED",
+        "GRANT_VERSION_CHANGED",
+        "action_approval.cancelled",
+      );
+    }
     const grantValid =
       grant.agentId === approval.agentId &&
       grant.status === "ACTIVE" &&
@@ -195,6 +204,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       approvalId: approval.id,
       agentId: approval.agentId,
       grantId: approval.grantId,
+      grantVersion: approval.grantVersion,
       requesterUserId: approval.requesterUserId,
       actionType: approval.actionType,
       recipient: approval.recipient,
