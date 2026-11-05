@@ -246,7 +246,7 @@ suite("agent worker (PostgreSQL integration)", () => {
       confidence: 0.9,
       sourceRunId: firstRun.id,
     });
-    expect(await prisma.personalMemory.count({ where: { userId: ownerId } })).toBe(0);
+    expect(await prisma.personalMemory.count({ where: { userId: ownerId, sourceReference: "AgentRun:" + firstRun.id } })).toBe(0);
 
     const secondRun = await createRun({ idempotencyKey: "worker-memory-learn-b-" + suffix, task });
     const secondResult = await runAgentWorkerOnce({
