@@ -222,6 +222,40 @@ suite("agent worker (PostgreSQL integration)", () => {
   });
 
 
+  it("creates a review-only suggestion from an explicit preference only when learning is enabled and deduplicates it", async () => {
+    await prisma.userPersona.upsert({
+      where: { userId: ownerId },
+      create: {
+        userId: ownerId, displayName: "Owner", tone: "واضح ومباشر",
+        goal: "Research", memoryContextEnabled: false, memoryLearningEnabled: true,
+      },
+      update: { memoryLearningEnabled: true },
+    });
+    const task = "I prefer concise responses. Research this supplier using public sources.";
+    const firstRun = await createRun({ idempotencyKey: "worker-memory-learn-a-" + suffix, task });
+    const firstResult = await runAgentWorkerOnce({
+      prisma, provider: successfulProvider(), moderator: successfulModerator(), workerId: "worker-memory-learn-a",
+    });
+    expect(firstResult).toMatchObject({ status: "PLANNED", runId: firstRun.id });
+    const suggestions = await prisma.memorySuggestion.findMany({ where: { userId: ownerId } });
+    expect(suggestions).toHaveLength(1);
+    expect(suggestions[0]).toMatchObject({
+      status: "PENDING",
+      content: "The owner prefers concise responses.",
+      evidenceExcerpt: "I prefer concise responses",
+      confidence: 0.9,
+      sourceRunId: firstRun.id,
+    });
+    expect(await prisma.personalMemory.count({ where: { userId: ownerId } })).toBe(0);
+
+    const secondRun = await createRun({ idempotencyKey: "worker-memory-learn-b-" + suffix, task });
+    const secondResult = await runAgentWorkerOnce({
+      prisma, provider: successfulProvider(), moderator: successfulModerator(), workerId: "worker-memory-learn-b",
+    });
+    expect(secondResult).toMatchObject({ status: "PLANNED", runId: secondRun.id });
+    expect(await prisma.memorySuggestion.count({ where: { userId: ownerId } })).toBe(1);
+  });
+
   it("does not send personal memory to the AI provider unless the owner opted in", async () => {
     await prisma.userPersona.upsert({
       where: { userId: ownerId },
