@@ -46,6 +46,7 @@ This repository is the engineering and product source of truth. Requirements, se
 - `docs/10-implementation-baseline.md` — initial implementation choices and first vertical slice.
 - `docs/11-initial-data-model.md` — initial relational model and integrity requirements.
 - `docs/12-api-contracts-v1.md` — first API contracts and activation status.
+- `docs/13-ai-tooling-and-skills-adoption.md` — assessed agent SDKs, MCP/A2A boundaries, reusable skills, licensing, and integration gates.
 - `docs/10-delegated-agent-operating-model.md` — approved autonomy model, execution architecture, requirements, risk tiers, and test/acceptance matrix.
 - `docs/ar/overview.md` — Arabic project overview.
 
