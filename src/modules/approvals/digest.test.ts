@@ -23,6 +23,7 @@ describe("exact-payload approval digests", () => {
       approvalId: "approval-1",
       agentId: "agent-1",
       grantId: "grant-1",
+      grantVersion: 3,
       requesterUserId: "user-1",
       actionType: "SEND_MESSAGE",
       recipient: "agent://recipient-1",
@@ -43,6 +44,10 @@ describe("exact-payload approval digests", () => {
     expect(digestApprovalEnvelope({
       ...base,
       actionType: "DELETE_RESOURCE",
+    })).not.toBe(digest);
+    expect(digestApprovalEnvelope({
+      ...base,
+      grantVersion: 4,
     })).not.toBe(digest);
   });
 
