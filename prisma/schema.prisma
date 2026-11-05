@@ -55,6 +55,13 @@ enum PersonalMemoryStatus {
   DELETED
 }
 
+enum MemorySuggestionStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  EXPIRED
+}
+
 enum GrantStatus {
   ACTIVE
   REVOKED
@@ -117,6 +124,7 @@ model User {
   requestedAgentRuns AgentRun[] @relation("AgentRunRequester")
   persona        UserPersona?
   personalMemories PersonalMemory[]
+  memorySuggestions MemorySuggestion[]
 }
 
 model UserPersona {
@@ -126,6 +134,7 @@ model UserPersona {
   tone        String   @db.VarChar(40)
   goal        String   @db.VarChar(240)
   memoryContextEnabled Boolean @default(false)
+  memoryLearningEnabled Boolean @default(false)
   version     Int      @default(1)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -403,11 +412,33 @@ model AgentRun {
   agent             Agent          @relation(fields: [agentId], references: [id], onDelete: Cascade)
   requester         User           @relation("AgentRunRequester", fields: [requesterUserId], references: [id], onDelete: Restrict)
   steps             AgentRunStep[]
+  memorySuggestions MemorySuggestion[]
 
   @@unique([requesterUserId, idempotencyKey])
   @@index([status, availableAt])
   @@index([agentId, createdAt])
   @@index([ownerType, ownerId, createdAt])
+}
+
+model MemorySuggestion {
+  id              String                 @id @default(cuid())
+  userId          String
+  sourceRunId     String
+  content         String                 @db.VarChar(1000)
+  evidenceExcerpt String                 @db.VarChar(500)
+  confidence      Float
+  dedupeKey       String                 @db.VarChar(64)
+  status          MemorySuggestionStatus @default(PENDING)
+  reviewedAt      DateTime?
+  version         Int                    @default(1)
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+  user            User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sourceRun       AgentRun               @relation(fields: [sourceRunId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, dedupeKey])
+  @@index([userId, status, createdAt])
+  @@index([sourceRunId])
 }
 
 model AgentRunStep {
