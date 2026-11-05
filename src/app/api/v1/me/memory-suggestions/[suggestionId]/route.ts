@@ -31,7 +31,13 @@ export async function PATCH(request: Request, context: RouteContext) {
   const correlationId = randomUUID();
   const result = await prisma.$transaction(async (tx) => {
     const suggestion = await tx.memorySuggestion.findFirst({
-      where: { id: suggestionId, userId: session.user.id, status: "PENDING", version: parsed.data.version },
+      where: {
+        id: suggestionId,
+        userId: session.user.id,
+        status: "PENDING",
+        version: parsed.data.version,
+        sourceRun: { is: { ownerType: "USER", ownerId: session.user.id, requesterUserId: session.user.id, status: "PLANNED" } },
+      },
       select: { id: true, content: true, sourceRunId: true, evidenceExcerpt: true },
     });
     if (!suggestion) return null;
