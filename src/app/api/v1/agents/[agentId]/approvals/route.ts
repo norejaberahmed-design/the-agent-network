@@ -122,38 +122,44 @@ export async function POST(request: Request, context: RouteContext) {
   });
   if (!agent) return apiError("NOT_FOUND", 404);
   if (agent.status !== "ACTIVE") return apiError("CONFLICT", 409);
-  if (agent.ownerType !== "ORGANIZATION" || !agent.organizationOwnerId) {
+  if (
+    (agent.ownerType === "USER" && agent.userOwnerId !== session.user.id) ||
+    (agent.ownerType === "ORGANIZATION" && !agent.organizationOwnerId)
+  ) {
     return apiError("FORBIDDEN", 403);
   }
 
   const now = new Date();
   const requestedExpiry = new Date(now.getTime() + parsed.data.expiresInMinutes * 60_000);
-  const ownerId = agent.organizationOwnerId;
+  const ownerId = agent.ownerType === "USER" ? agent.userOwnerId : agent.organizationOwnerId;
   if (!ownerId) return apiError("CONFLICT", 409);
 
   const result = await prisma.$transaction(async (tx) => {
     const currentAgent = await tx.agent.findUnique({
       where: { id: agentId },
-      select: { status: true, ownerType: true, organizationOwnerId: true },
+      select: { status: true, ownerType: true, userOwnerId: true, organizationOwnerId: true },
     });
     if (!currentAgent) return { state: "GRANT_NOT_FOUND" as const };
     if (
       currentAgent.status !== "ACTIVE" ||
-      currentAgent.ownerType !== "ORGANIZATION" ||
+      currentAgent.ownerType !== agent.ownerType ||
+      currentAgent.userOwnerId !== agent.userOwnerId ||
       currentAgent.organizationOwnerId !== agent.organizationOwnerId
     ) {
       return { state: "AGENT_INACTIVE" as const };
     }
 
-    const requesterMembership = await tx.membership.findFirst({
-      where: {
-        organizationId: currentAgent.organizationOwnerId!,
-        userId: session.user.id,
-        role: { in: ["OWNER", "ADMIN"] },
-      },
-      select: { id: true },
-    });
-    if (!requesterMembership) return { state: "FORBIDDEN" as const };
+    const requesterAuthorized = currentAgent.ownerType === "USER"
+      ? currentAgent.userOwnerId === session.user.id
+      : Boolean(currentAgent.organizationOwnerId && await tx.membership.findFirst({
+          where: {
+            organizationId: currentAgent.organizationOwnerId,
+            userId: session.user.id,
+            role: { in: ["OWNER", "ADMIN"] },
+          },
+          select: { id: true },
+        }));
+    if (!requesterAuthorized) return { state: "FORBIDDEN" as const };
 
     const existing = await tx.actionApproval.findUnique({
       where: { idempotencyKey: parsed.data.idempotencyKey },
