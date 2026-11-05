@@ -51,6 +51,7 @@ export function digestApprovalEnvelope(input: {
   approvalId: string;
   agentId: string;
   grantId: string;
+  grantVersion: number;
   requesterUserId: string;
   actionType: string;
   recipient: string;
@@ -63,6 +64,7 @@ export function digestApprovalEnvelope(input: {
     approvalId: input.approvalId,
     agentId: input.agentId,
     grantId: input.grantId,
+    grantVersion: input.grantVersion,
     requesterUserId: input.requesterUserId,
     actionType: input.actionType,
     recipient: input.recipient,

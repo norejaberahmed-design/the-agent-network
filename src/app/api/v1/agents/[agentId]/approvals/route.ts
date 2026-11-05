@@ -188,6 +188,7 @@ export async function POST(request: Request, context: RouteContext) {
       where: { id: parsed.data.grantId, agentId },
       select: {
         id: true,
+        version: true,
         actionScope: true,
         targetScope: true,
         dataScope: true,
@@ -223,6 +224,7 @@ export async function POST(request: Request, context: RouteContext) {
       approvalId,
       agentId,
       grantId: grant.id,
+      grantVersion: grant.version,
       requesterUserId: session.user.id,
       actionType: parsed.data.actionType,
       recipient: parsed.data.recipient,
@@ -238,6 +240,7 @@ export async function POST(request: Request, context: RouteContext) {
         agentId,
         organizationId: currentAgent.organizationOwnerId,
         grantId: grant.id,
+        grantVersion: grant.version,
         requesterUserId: session.user.id,
         actionType: parsed.data.actionType,
         recipient: parsed.data.recipient,

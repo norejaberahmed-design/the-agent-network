@@ -504,4 +504,37 @@ suite("exact-payload action approval workflow (PostgreSQL integration)", () => {
     });
   });
 
+  it("cancels a pending approval when its grant version changes", async () => {
+    const grant = await createGrant("grant-version-changed");
+    const response = await submitApproval(
+      grant.id,
+      `grant-version-key-${suffix}`,
+      { message: "Approve only under the reviewed grant version" },
+    );
+    expect(response.status).toBe(201);
+    const payload = await response.json();
+
+    await prisma.permissionGrant.update({
+      where: { id: grant.id },
+      data: { version: { increment: 1 } },
+    });
+
+    setSessionUser(ownerId);
+    const decision = await decideApproval(
+      patchRequest({ decision: "APPROVE" }),
+      decisionContext(payload.data.id),
+    );
+    expect(decision.status).toBe(200);
+
+    const stored = await prisma.actionApproval.findUniqueOrThrow({
+      where: { id: payload.data.id },
+      select: { status: true, decisionReason: true },
+    });
+    expect(stored).toEqual({
+      status: "CANCELLED",
+      decisionReason: "GRANT_VERSION_CHANGED",
+    });
+  });
+
+
 });
