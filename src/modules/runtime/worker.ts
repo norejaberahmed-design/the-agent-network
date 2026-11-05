@@ -7,6 +7,7 @@ import {
 } from "./planner";
 import { lockAgentRuntime, lockGrantRows } from "./locks";
 import { selectPersonalContext } from "@/modules/memory/context";
+import { extractExplicitMemorySuggestions } from "@/modules/memory/suggestion-extractor";
 import {
   mayContainChildSexualAbuse,
   mayContainCredentialOrSecret,
@@ -662,6 +663,45 @@ export async function runAgentWorkerOnce(args: {
         },
       });
       if (consumed.count !== 1) throw new Error("GRANT_CONSUMPTION_CONFLICT");
+    }
+
+    if (current.ownerType === "USER" && current.ownerId === current.requesterUserId) {
+      const learningConsent = await tx.userPersona.findUnique({
+        where: { userId: current.requesterUserId },
+        select: { memoryLearningEnabled: true },
+      });
+      if (learningConsent?.memoryLearningEnabled) {
+        const suggestions = extractExplicitMemorySuggestions(current.task);
+        for (const suggestion of suggestions) {
+          const created = await tx.memorySuggestion.createMany({
+            data: [{
+              userId: current.requesterUserId,
+              sourceRunId: current.id,
+              content: suggestion.content,
+              evidenceExcerpt: suggestion.evidenceExcerpt,
+              confidence: suggestion.confidence,
+              dedupeKey: suggestion.dedupeKey,
+            }],
+            skipDuplicates: true,
+          });
+          if (created.count === 1) {
+            await tx.auditEvent.create({
+              data: {
+                actorUserId: current.requesterUserId,
+                agentId: current.agentId,
+                ownerType: "USER",
+                ownerId: current.requesterUserId,
+                action: "personal_memory.suggestion_created",
+                targetType: "MemorySuggestion",
+                targetId: suggestion.dedupeKey,
+                outcome: "COMPLETED",
+                correlationId: randomUUID(),
+                metadata: { sourceRunId: current.id, confidenceBand: "HIGH", extractor: "explicit-preference-v1" },
+              },
+            });
+          }
+        }
+      }
     }
 
     await tx.auditEvent.create({
