@@ -176,13 +176,6 @@ export async function PATCH(request: Request, context: RouteContext) {
     }
 
     const grant = approval.grant;
-    if (grant.version !== approval.grantVersion) {
-      return expireOrCancel(
-        "CANCELLED",
-        "GRANT_VERSION_CHANGED",
-        "action_approval.cancelled",
-      );
-    }
     const grantValid =
       grant.agentId === approval.agentId &&
       grant.status === "ACTIVE" &&
@@ -196,6 +189,14 @@ export async function PATCH(request: Request, context: RouteContext) {
       return expireOrCancel(
         "CANCELLED",
         "GRANT_NO_LONGER_VALID",
+        "action_approval.cancelled",
+      );
+    }
+
+    if (grant.version !== approval.grantVersion) {
+      return expireOrCancel(
+        "CANCELLED",
+        "GRANT_VERSION_CHANGED",
         "action_approval.cancelled",
       );
     }
