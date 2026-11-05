@@ -20,6 +20,7 @@ export async function GET() {
       tone: true,
       goal: true,
       memoryContextEnabled: true,
+      memoryLearningEnabled: true,
       version: true,
       updatedAt: true,
     },
@@ -60,6 +61,7 @@ export async function PATCH(request: Request) {
         tone: true,
         goal: true,
         memoryContextEnabled: true,
+        memoryLearningEnabled: true,
         version: true,
         updatedAt: true,
       },
@@ -73,7 +75,7 @@ export async function PATCH(request: Request) {
         targetId: session.user.id,
         outcome: "COMPLETED",
         correlationId,
-        metadata: { changedFields: ["displayName", "tone", "goal", ...(parsed.data.memoryContextEnabled !== undefined ? ["memoryContextEnabled"] : [])], version: saved.version },
+        metadata: { changedFields: ["displayName", "tone", "goal", ...(parsed.data.memoryContextEnabled !== undefined ? ["memoryContextEnabled"] : []), ...(parsed.data.memoryLearningEnabled !== undefined ? ["memoryLearningEnabled"] : [])], version: saved.version },
       },
     });
 
