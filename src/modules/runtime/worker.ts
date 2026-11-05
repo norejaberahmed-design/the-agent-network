@@ -685,6 +685,10 @@ export async function runAgentWorkerOnce(args: {
             skipDuplicates: true,
           });
           if (created.count === 1) {
+            const savedSuggestion = await tx.memorySuggestion.findUnique({
+              where: { userId_dedupeKey: { userId: current.requesterUserId, dedupeKey: suggestion.dedupeKey } },
+              select: { id: true },
+            });
             await tx.auditEvent.create({
               data: {
                 actorUserId: current.requesterUserId,
@@ -693,7 +697,7 @@ export async function runAgentWorkerOnce(args: {
                 ownerId: current.requesterUserId,
                 action: "personal_memory.suggestion_created",
                 targetType: "MemorySuggestion",
-                targetId: suggestion.dedupeKey,
+                targetId: savedSuggestion?.id ?? null,
                 outcome: "COMPLETED",
                 correlationId: randomUUID(),
                 metadata: { sourceRunId: current.id, confidenceBand: "HIGH", extractor: "explicit-preference-v1" },
