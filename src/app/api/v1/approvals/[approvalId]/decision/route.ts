@@ -38,10 +38,18 @@ export async function PATCH(request: Request, context: RouteContext) {
   const { approvalId } = await context.params;
   const approvalForAccess = await prisma.actionApproval.findUnique({
     where: { id: approvalId },
-    select: { agentId: true, grantId: true, requesterUserId: true },
+    select: {
+      agentId: true,
+      grantId: true,
+      requesterUserId: true,
+      agent: { select: { ownerType: true, userOwnerId: true } },
+    },
   });
   if (!approvalForAccess) return apiError("NOT_FOUND", 404);
-  if (approvalForAccess.requesterUserId === session.user.id) {
+  if (
+    approvalForAccess.agent.ownerType === "ORGANIZATION" &&
+    approvalForAccess.requesterUserId === session.user.id
+  ) {
     return apiError("FORBIDDEN", 403);
   }
   if (!(await canApproveAgentActions(approvalForAccess.agentId, session.user.id))) {
@@ -98,27 +106,34 @@ export async function PATCH(request: Request, context: RouteContext) {
     });
     if (!approval) return { state: "NOT_FOUND" as const };
     if (approval.status !== "PENDING") return { state: "CONFLICT" as const };
-    if (approval.requesterUserId === session.user.id) {
+    const personalOwnerApproval =
+      approval.agent.ownerType === "USER" &&
+      approval.agent.userOwnerId === session.user.id &&
+      approval.organizationId === null;
+    const organizationApproval =
+      approval.agent.ownerType === "ORGANIZATION" &&
+      Boolean(approval.agent.organizationOwnerId) &&
+      approval.organizationId === approval.agent.organizationOwnerId &&
+      approval.requesterUserId !== session.user.id;
+    if (!personalOwnerApproval && !organizationApproval) {
       return { state: "FORBIDDEN" as const };
     }
 
-    if (
-      approval.agent.ownerType !== "ORGANIZATION" ||
-      !approval.agent.organizationOwnerId ||
-      approval.organizationId !== approval.agent.organizationOwnerId
-    ) {
-      return { state: "CONFLICT" as const };
-    }
-    const ownerId = approval.agent.organizationOwnerId;
+    const ownerId = approval.agent.ownerType === "USER"
+      ? approval.agent.userOwnerId
+      : approval.agent.organizationOwnerId;
+    if (!ownerId) return { state: "CONFLICT" as const };
 
-    const stillAuthorized = Boolean(await tx.membership.findFirst({
-      where: {
-        organizationId: ownerId,
-        userId: session.user.id,
-        role: { in: ["OWNER", "ADMIN"] },
-      },
-      select: { id: true },
-    }));
+    const stillAuthorized = approval.agent.ownerType === "USER"
+      ? approval.agent.userOwnerId === session.user.id
+      : Boolean(await tx.membership.findFirst({
+          where: {
+            organizationId: ownerId,
+            userId: session.user.id,
+            role: { in: ["OWNER", "ADMIN"] },
+          },
+          select: { id: true },
+        }));
     if (!stillAuthorized) return { state: "FORBIDDEN" as const };
 
     const expireOrCancel = async (
