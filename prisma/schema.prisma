@@ -342,6 +342,7 @@ model ActionApproval {
   agentId         String
   organizationId  String?
   grantId         String
+  grantVersion     Int            @default(1)
   requesterUserId String
   approverUserId  String?
   actionType      String
