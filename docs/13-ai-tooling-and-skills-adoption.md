@@ -14,8 +14,9 @@ Do not replace the current application with a new agent framework and do not ins
 Adopt a standards-first, adapter-based path:
 
 1. Keep PostgreSQL, Prisma, Better Auth, the current tenant/security modules, persisted AgentRun worker, permission grants, memory governance, and digest-bound approvals as the system of record.
-2. Evaluate the official OpenAI Agents SDK for TypeScript as the first orchestration adapter. Use it only behind the existing provider/runtime boundary for agent loops, typed function tools, guardrails, MCP connectivity, handoffs when justified, and tracing.
-3. Keep deterministic authorization, grant reservation/consumption, approval decisions, audit records, retention, and durable task state in the existing application. SDK sessions or model context must not become a second authority or database.
+2. Complete the first working vertical slice with the existing OpenAI Responses API provider and its built-in web-search capability. The repository already contains this provider boundary; adding another orchestration SDK before proving the current path would duplicate runtime responsibilities.
+3. Evaluate the official OpenAI Agents SDK for TypeScript as an optional second-stage adapter only when multi-step function tools, MCP orchestration, handoffs, or richer tracing create a measured need. Use it behind the existing provider/runtime boundary; do not install it merely for branding or to replace working domain logic.
+4. Keep deterministic authorization, grant reservation/consumption, approval decisions, audit records, retention, and durable task state in the existing application. SDK sessions or model context must not become a second authority or database.
 4. Treat MCP as the tool/data integration protocol and A2A as the agent-to-agent interoperability protocol. They solve different problems and must be introduced in separate, testable phases.
 5. Adopt the open Agent Skills format for reviewed procedural knowledge. A skill is not a connector, permission, model, or executable tool. It must never grant authority by itself.
 6. Use coding-agent skills from trusted repositories for development review and test generation only; do not expose those coding skills as user-facing runtime capabilities.
@@ -62,18 +63,18 @@ These PRs are not equivalent to merged or deployed functionality. The #32 → #3
 
 | Candidate | Reuse value for TAN | Decision |
 |---|---|---|
-| OpenAI Agents SDK for TypeScript | Agent loop, typed function tools, guardrails, handoffs, MCP integration, tracing; matches the existing TypeScript server | **Preferred first adapter to prototype** |
+| OpenAI Agents SDK for TypeScript | Agent loop, typed function tools, guardrails, handoffs, MCP integration, tracing; matches the existing TypeScript server | **Defer until the existing Responses-based vertical slice is verified; then prototype if it removes real complexity** |
 | LangGraph | Durable graph orchestration, checkpoints, human-in-loop patterns | Do not add now: overlaps with the existing PostgreSQL worker, run lifecycle, and approval state |
 | Google ADK for TypeScript | Code-first agents, MCP and A2A ecosystem | Keep as a future interoperability comparison; adding it now duplicates orchestration and increases provider/platform surface |
 | Mastra | TypeScript agent/workflow framework | Do not add now: overlaps with existing workflow and persistence layers |
 | CrewAI | Role-based multi-agent orchestration | Do not add now: Python runtime would introduce a second application runtime without a demonstrated need |
 | Microsoft Agent Framework | Enterprise workflows and MCP/A2A support | Revisit only if a concrete enterprise/.NET integration requires it |
 
-### OpenAI Agents SDK integration boundary
+### Optional OpenAI Agents SDK integration boundary
 
 The official SDK documentation describes the SDK path as appropriate when the application server owns deployment, tool implementations, state storage, and approval decisions while the SDK runs the agent loop. This maps to TAN's existing architecture.
 
-Prototype the SDK behind an adapter; do not replace:
+Only prototype the SDK after Gate 1. The current package declares Node >=20.11, while the SDK currently documents Node 22 or later; adopting it therefore requires a deliberate Node runtime compatibility check and an engine/runtime update. Do not replace:
 - `AgentRun` and `AgentRunStep` persistence;
 - the worker lease/recovery and per-agent locks;
 - permission grants and their live revalidation;
@@ -154,13 +155,14 @@ These should be authored as original, versioned instructions and tested against 
 - Submit a research task and see its persisted run state, result, source links, and audit record.
 - Show a clear disabled/blocked state when credentials, consent, grants, or worker readiness are absent.
 
-### Gate 2 — SDK adapter proof
-- Add the SDK only after a pinned version and license review.
+### Gate 2 — optional SDK adapter proof
+- Do not start this gate until Gate 1 works end to end with the existing Responses API provider and source-linked evidence.
+- Pin and review the SDK version, MIT license, Node 22+ runtime requirement, and dependency tree.
 - Keep a provider-neutral internal request/result contract.
 - Add one read-only function tool with schema validation and server-side authorization.
 - Persist run/tool events in the existing database.
 - Test retries, cancellation, timeout, revocation during execution, malformed tool output, prompt injection, and trace redaction.
-- Keep the current direct Responses provider available until adapter parity is demonstrated.
+- Keep the current direct Responses provider available until adapter parity is demonstrated; remove the SDK again if it adds no measurable value.
 
 ### Gate 3 — reviewed skills
 - Add a skill registry with version, provenance, license, owner/tenant scope, and enabled state.
@@ -202,7 +204,8 @@ A product demo is not proof of market demand, revenue, security certification, o
 ## 9. Primary references
 
 - OpenAI Agents SDK overview: https://developers.openai.com/api/docs/guides/agents/sdk
-- OpenAI Agents SDK TypeScript repository: https://github.com/openai/openai-agents-js
+- OpenAI Agents SDK TypeScript repository (MIT; Node 22+; verify current release before pinning): https://github.com/openai/openai-agents-js
+- OpenAI Agents SDK npm package and version/license metadata: https://www.npmjs.com/package/@openai/agents
 - OpenAI orchestration and handoffs: https://developers.openai.com/api/docs/guides/agents/orchestration
 - OpenAI integrations and observability: https://developers.openai.com/api/docs/guides/agents/integrations-observability
 - MCP specification and authorization: https://modelcontextprotocol.io/specification/
