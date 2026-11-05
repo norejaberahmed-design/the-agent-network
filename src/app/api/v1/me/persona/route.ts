@@ -61,6 +61,7 @@ export async function PATCH(request: Request) {
         tone: true,
         goal: true,
         memoryContextEnabled: true,
+        memoryLearningEnabled: true,
         version: true,
         updatedAt: true,
       },
