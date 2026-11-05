@@ -31,12 +31,14 @@ const viewerId = `approval-viewer-${suffix}`;
 const outsiderId = `approval-outsider-${suffix}`;
 const organizationId = `approval-org-${suffix}`;
 const agentId = `approval-agent-${suffix}`;
+const personalAgentId = `approval-personal-agent-${suffix}`;
 
 const setSessionUser = (userId: string) => {
   vi.mocked(auth.api.getSession).mockResolvedValue({ user: { id: userId } } as never);
 };
 
 const agentContext = { params: Promise.resolve({ agentId }) };
+const personalAgentContext = { params: Promise.resolve({ agentId: personalAgentId }) };
 const decisionContext = (approvalId: string) => ({
   params: Promise.resolve({ approvalId }),
 });
@@ -112,23 +114,33 @@ suite("exact-payload action approval workflow (PostgreSQL integration)", () => {
         { organizationId, userId: viewerId, role: "VIEWER" },
       ],
     });
-    await prisma.agent.create({
-      data: {
-        id: agentId,
-        ownerType: "ORGANIZATION",
-        organizationOwnerId: organizationId,
-        name: "Approval Test Agent",
-        purpose: "Test controlled action approval.",
-        status: "ACTIVE",
-      },
+    await prisma.agent.createMany({
+      data: [
+        {
+          id: agentId,
+          ownerType: "ORGANIZATION",
+          organizationOwnerId: organizationId,
+          name: "Approval Test Agent",
+          purpose: "Test controlled action approval.",
+          status: "ACTIVE",
+        },
+        {
+          id: personalAgentId,
+          ownerType: "USER",
+          userOwnerId: ownerId,
+          name: "Personal Approval Test Agent",
+          purpose: "Test owner-controlled personal action approval.",
+          status: "ACTIVE",
+        },
+      ],
     });
   });
 
   afterAll(async () => {
     await prisma.auditEvent.deleteMany({ where: { ownerId: organizationId } });
-    await prisma.actionApproval.deleteMany({ where: { agentId } });
-    await prisma.permissionGrant.deleteMany({ where: { agentId } });
-    await prisma.agent.deleteMany({ where: { id: agentId } });
+    await prisma.actionApproval.deleteMany({ where: { agentId: { in: [agentId, personalAgentId] } } });
+    await prisma.permissionGrant.deleteMany({ where: { agentId: { in: [agentId, personalAgentId] } } });
+    await prisma.agent.deleteMany({ where: { id: { in: [agentId, personalAgentId] } } });
     await prisma.membership.deleteMany({ where: { organizationId } });
     await prisma.organization.deleteMany({ where: { id: organizationId } });
     await prisma.user.deleteMany({
@@ -536,5 +548,53 @@ suite("exact-payload action approval workflow (PostgreSQL integration)", () => {
     });
   });
 
+
+  it("allows the personal owner to approve an exact action proposed by their own agent", async () => {
+    const grant = await prisma.permissionGrant.create({
+      data: {
+        id: "approval-personal-grant-" + suffix,
+        agentId: personalAgentId,
+        purpose: "Owner-reviewed personal agent message",
+        actionScope: ["SEND_MESSAGE"],
+        targetScope: ["agent://target-1"],
+        dataScope: ["PUBLIC_PROFILE"],
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+        maxUses: 2,
+      },
+    });
+
+    setSessionUser(ownerId);
+    const created = await createApprovalRequest(
+      postRequest({
+        grantId: grant.id,
+        actionType: "SEND_MESSAGE",
+        recipient: "agent://target-1",
+        requestedDataScope: ["PUBLIC_PROFILE"],
+        payload: { message: "A personal agent proposal requiring owner review" },
+        idempotencyKey: "personal-approval-" + suffix,
+      }),
+      personalAgentContext,
+    );
+    expect(created.status).toBe(201);
+    const payload = await created.json();
+
+    setSessionUser(ownerId);
+    const decision = await decideApproval(
+      patchRequest({ decision: "APPROVE", reason: "Reviewed the exact personal-agent proposal." }),
+      decisionContext(payload.data.id),
+    );
+    expect(decision.status).toBe(200);
+
+    const stored = await prisma.actionApproval.findUniqueOrThrow({
+      where: { id: payload.data.id },
+      select: { status: true, organizationId: true, requesterUserId: true, approverUserId: true },
+    });
+    expect(stored).toEqual({
+      status: "APPROVED",
+      organizationId: null,
+      requesterUserId: ownerId,
+      approverUserId: ownerId,
+    });
+  });
 
 });
