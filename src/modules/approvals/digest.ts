@@ -109,3 +109,33 @@ function sanitizePreview(
 export function createSafeApprovalPreview(payload: Record<string, unknown>): SafeApprovalJson {
   return sanitizePreview(payload, 0);
 }
+
+function isReviewableValue(value: unknown, depth: number, key?: string): boolean {
+  if (key && sensitiveKeyPattern.test(key)) return false;
+  if (depth > 4) return false;
+  if (value === null || typeof value === "boolean") return true;
+  if (typeof value === "number") return Number.isFinite(value);
+  if (typeof value === "string") return value.length <= 500;
+  if (Array.isArray(value)) {
+    return value.length <= 20 && value.every((item) => isReviewableValue(item, depth + 1));
+  }
+  if (typeof value === "object") {
+    const prototype = Object.getPrototypeOf(value);
+    if (prototype !== Object.prototype && prototype !== null) return false;
+    const entries = Object.entries(value as Record<string, unknown>);
+    return entries.length <= 40 &&
+      entries.every(([entryKey, entryValue]) =>
+        entryValue !== undefined && isReviewableValue(entryValue, depth + 1, entryKey)
+      );
+  }
+  return false;
+}
+
+/**
+ * The approval UI must be able to show every payload field without truncation
+ * or secret redaction. If it cannot, reject the proposal instead of asking the
+ * owner to approve an incomplete preview.
+ */
+export function isApprovalPayloadReviewable(payload: Record<string, unknown>): boolean {
+  return isReviewableValue(payload, 0);
+}
