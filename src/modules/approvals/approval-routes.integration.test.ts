@@ -57,7 +57,7 @@ const patchRequest = (body: unknown) =>
     body: JSON.stringify(body),
   });
 
-async function createGrant(key: string) {
+async function createGrant(key: string, maxUses = 5) {
   return prisma.permissionGrant.create({
     data: {
       id: `approval-grant-${key}-${suffix}`,
@@ -67,7 +67,7 @@ async function createGrant(key: string) {
       targetScope: ["agent://target-1"],
       dataScope: ["PUBLIC_PROFILE", "CONTACT"],
       expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
-      maxUses: 5,
+      maxUses,
     },
   });
 }
@@ -232,6 +232,8 @@ suite("exact-payload action approval workflow (PostgreSQL integration)", () => {
     expect(stored.payloadNonce).toBeTruthy();
     expect(stored.payloadAuthTag).toBeTruthy();
     expect(stored.payloadKeyVersion).toBe(1);
+    expect(stored.usageReserved).toBe(true);
+    await expect(prisma.permissionGrant.findUniqueOrThrow({ where: { id: grant.id }, select: { reservedUses: true } })).resolves.toEqual({ reservedUses: 1 });
     expect(stored.approvalDigest).toMatch(/^[a-f0-9]{64}$/);
     expect(stored.status).toBe("PENDING");
     await expect(
@@ -309,6 +311,9 @@ suite("exact-payload action approval workflow (PostgreSQL integration)", () => {
       rejectedAt: expect.any(Date),
       decisionReason: "Recipient is not approved.",
     });
+    await expect(
+      prisma.permissionGrant.findUniqueOrThrow({ where: { id: grant.id }, select: { reservedUses: true } }),
+    ).resolves.toEqual({ reservedUses: 0 });
   });
 
   it("expires stale requests and cancels requests whose grants are revoked", async () => {
@@ -415,6 +420,35 @@ suite("exact-payload action approval workflow (PostgreSQL integration)", () => {
     await expect(
       prisma.actionApproval.count({ where: { idempotencyKey: key } }),
     ).resolves.toBe(1);
+  });
+
+  it("atomically reserves maxUses across concurrent approval requests", async () => {
+    const grant = await createGrant("max-uses-one", 1);
+    const [first, second] = await Promise.all([
+      submitApproval(grant.id, `max-one-a-${suffix}`, { message: "first" }),
+      submitApproval(grant.id, `max-one-b-${suffix}`, { message: "second" }),
+    ]);
+    expect([first.status, second.status].sort()).toEqual([201, 409]);
+    const storedGrant = await prisma.permissionGrant.findUniqueOrThrow({
+      where: { id: grant.id },
+      select: { uses: true, reservedUses: true, maxUses: true },
+    });
+    expect(storedGrant).toEqual({ uses: 0, reservedUses: 1, maxUses: 1 });
+    const approval = await prisma.actionApproval.findFirstOrThrow({
+      where: { grantId: grant.id },
+      select: { status: true, usageReserved: true },
+    });
+    expect(approval).toEqual({ status: "PENDING", usageReserved: true });
+
+    setSessionUser(ownerId);
+    const rejected = await decideApproval(
+      patchRequest({ decision: "REJECT", reason: "Capacity test release" }),
+      decisionContext((await prisma.actionApproval.findFirstOrThrow({ where: { grantId: grant.id }, select: { id: true } })).id),
+    );
+    expect(rejected.status).toBe(200);
+    await expect(
+      prisma.permissionGrant.findUniqueOrThrow({ where: { id: grant.id }, select: { reservedUses: true } }),
+    ).resolves.toEqual({ reservedUses: 0 });
   });
 
   it("allows exactly one concurrent approval decision", async () => {
