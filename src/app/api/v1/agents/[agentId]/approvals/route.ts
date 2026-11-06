@@ -177,6 +177,60 @@ export async function POST(request: Request, context: RouteContext) {
     ) return { state: "AGENT_INACTIVE" as const };
 
     await lockGrantRows(tx, [parsed.data.grantId]);
+    const expiredApprovals = await tx.actionApproval.findMany({
+      where: {
+        grantId: parsed.data.grantId,
+        status: { in: ["PENDING", "APPROVED"] },
+        expiresAt: { lte: now },
+        usageReserved: true,
+      },
+      select: { id: true, version: true },
+    });
+    if (expiredApprovals.length > 0) {
+      const expired = await tx.actionApproval.updateMany({
+        where: {
+          id: { in: expiredApprovals.map((approval) => approval.id) },
+          status: { in: ["PENDING", "APPROVED"] },
+          usageReserved: true,
+          expiresAt: { lte: now },
+        },
+        data: {
+          status: "EXPIRED",
+          usageReserved: false,
+          decisionReason: "APPROVAL_EXPIRED",
+          version: { increment: 1 },
+        },
+      });
+      if (expired.count !== expiredApprovals.length) {
+        throw new Error("APPROVAL_EXPIRY_RESERVATION_CONFLICT");
+      }
+      const released = await tx.permissionGrant.updateMany({
+        where: {
+          id: parsed.data.grantId,
+          agentId,
+          reservedUses: { gte: expiredApprovals.length },
+        },
+        data: { reservedUses: { decrement: expiredApprovals.length } },
+      });
+      if (released.count !== 1) throw new Error("APPROVAL_USAGE_RESERVATION_MISSING");
+      for (const approval of expiredApprovals) {
+        await tx.auditEvent.create({
+          data: {
+            actorUserId: session.user.id,
+            agentId,
+            ownerType: currentAgent.ownerType,
+            ownerId,
+            action: "action_approval.expired",
+            targetType: "ActionApproval",
+            targetId: approval.id,
+            outcome: "FAILED",
+            policyVersion: String(approval.version + 1),
+            correlationId: randomUUID(),
+            metadata: { reason: "APPROVAL_EXPIRED" },
+          },
+        });
+      }
+    }
     const existing = await tx.actionApproval.findUnique({
       where: { idempotencyKey: parsed.data.idempotencyKey },
       select: {
