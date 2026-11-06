@@ -8,6 +8,7 @@ import { isTrustedMutationRequest } from "@/lib/request-security";
 import { prisma } from "@/lib/prisma";
 import { getAgentAccess } from "@/modules/agents/access";
 import { canApproveAgentActions } from "@/modules/approvals/access";
+import { encryptApprovalPayload } from "@/modules/approvals/payload-vault";
 import {
   createSafeApprovalPreview,
   digestApprovalEnvelope,
@@ -239,6 +240,17 @@ export async function POST(request: Request, context: RouteContext) {
       expiresAt,
       idempotencyKey: parsed.data.idempotencyKey,
     });
+    let encryptedPayload: ReturnType<typeof encryptApprovalPayload>;
+    try {
+      encryptedPayload = encryptApprovalPayload(parsed.data.payload, {
+        approvalId,
+        agentId,
+        grantId: grant.id,
+        payloadDigest,
+      });
+    } catch {
+      return { state: "PAYLOAD_VAULT_UNAVAILABLE" as const };
+    }
 
     const inserted = await tx.actionApproval.createMany({
       data: [{
@@ -254,6 +266,7 @@ export async function POST(request: Request, context: RouteContext) {
         payloadDigest,
         approvalDigest,
         payloadPreview: payloadPreview as Prisma.InputJsonValue,
+        ...encryptedPayload,
         idempotencyKey: parsed.data.idempotencyKey,
         expiresAt,
       }],
@@ -335,6 +348,7 @@ export async function POST(request: Request, context: RouteContext) {
   if (result.state === "AGENT_INACTIVE") return apiError("CONFLICT", 409);
   if (result.state === "GRANT_INACTIVE") return apiError("CONFLICT", 409);
   if (result.state === "GRANT_SCOPE_DENIED") return apiError("FORBIDDEN", 403);
+  if (result.state === "PAYLOAD_VAULT_UNAVAILABLE") return apiError("SERVICE_UNAVAILABLE", 503);
 
   return Response.json(
     result.state === "CREATED"
