@@ -72,7 +72,7 @@ async function createGrant(key: string, maxUses = 5) {
   });
 }
 
-async function submitApproval(grantId: string, idempotencyKey: string, payload: Record<string, unknown> = { message: "Hello", apiKey: "sensitive-value" }, requesterId = adminId) {
+async function submitApproval(grantId: string, idempotencyKey: string, payload: Record<string, unknown> = { message: "Hello" }, requesterId = adminId) {
   setSessionUser(requesterId);
   return createApprovalRequest(
     postRequest({
@@ -206,7 +206,7 @@ suite("exact-payload action approval workflow (PostgreSQL integration)", () => {
     expect(denied.status).toBe(403);
   });
 
-  it("creates a digest-bound request, redacts preview secrets, and enforces idempotency", async () => {
+  it("creates a digest-bound request with a complete preview and enforces idempotency", async () => {
     const grant = await createGrant("idempotency");
     const key = `approval-key-${suffix}`;
     const first = await submitApproval(grant.id, key);
@@ -214,7 +214,7 @@ suite("exact-payload action approval workflow (PostgreSQL integration)", () => {
     const firstPayload = await first.json();
     expect(firstPayload.data.status).toBe("PENDING");
     expect(firstPayload.data.payloadDigest).toMatch(/^[a-f0-9]{64}$/);
-    expect(firstPayload.data.payloadPreview.apiKey).toBe("[REDACTED]");
+    expect(firstPayload.data.payloadPreview.message).toBe("Hello");
 
     const repeated = await submitApproval(grant.id, key);
     expect(repeated.status).toBe(200);
@@ -246,6 +246,26 @@ suite("exact-payload action approval workflow (PostgreSQL integration)", () => {
         },
       }),
     ).resolves.toBe(1);
+  });
+
+  it("rejects approval payloads that would hide secrets or truncate reviewed content", async () => {
+    const grant = await createGrant("unreviewable-payload");
+    const secret = await submitApproval(
+      grant.id,
+      `secret-payload-${suffix}`,
+      { message: "Hello", apiKey: "must-not-be-hidden" },
+    );
+    expect(secret.status).toBe(422);
+    const truncated = await submitApproval(
+      grant.id,
+      `truncated-payload-${suffix}`,
+      { message: "x".repeat(501) },
+    );
+    expect(truncated.status).toBe(422);
+    await expect(prisma.actionApproval.count({ where: { grantId: grant.id } })).resolves.toBe(0);
+    await expect(
+      prisma.permissionGrant.findUniqueOrThrow({ where: { id: grant.id }, select: { reservedUses: true } }),
+    ).resolves.toEqual({ reservedUses: 0 });
   });
 
   it("allows the owner to approve but forbids self-approval and manager decisions", async () => {
