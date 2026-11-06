@@ -9,6 +9,7 @@ import { prisma } from "@/lib/prisma";
 import { getAgentAccess } from "@/modules/agents/access";
 import { canApproveAgentActions } from "@/modules/approvals/access";
 import { encryptApprovalPayload } from "@/modules/approvals/payload-vault";
+import { lockGrantRows } from "@/modules/runtime/locks";
 import {
   createSafeApprovalPreview,
   digestApprovalEnvelope,
@@ -191,6 +192,7 @@ export async function POST(request: Request, context: RouteContext) {
         : { state: "IDEMPOTENCY_CONFLICT" as const };
     }
 
+    await lockGrantRows(tx, [parsed.data.grantId]);
     const grant = await tx.permissionGrant.findFirst({
       where: { id: parsed.data.grantId, agentId },
       select: {
@@ -202,6 +204,7 @@ export async function POST(request: Request, context: RouteContext) {
         expiresAt: true,
         maxUses: true,
         uses: true,
+        reservedUses: true,
         status: true,
         revokedAt: true,
       },
@@ -211,7 +214,7 @@ export async function POST(request: Request, context: RouteContext) {
       grant.status !== "ACTIVE" ||
       grant.revokedAt !== null ||
       grant.expiresAt <= now ||
-      (grant.maxUses !== null && grant.uses >= grant.maxUses)
+      (grant.maxUses !== null && grant.uses + grant.reservedUses >= grant.maxUses)
     ) {
       return { state: "GRANT_INACTIVE" as const };
     }
@@ -267,6 +270,7 @@ export async function POST(request: Request, context: RouteContext) {
         approvalDigest,
         payloadPreview: payloadPreview as Prisma.InputJsonValue,
         ...encryptedPayload,
+        usageReserved: true,
         idempotencyKey: parsed.data.idempotencyKey,
         expiresAt,
       }],
@@ -301,6 +305,18 @@ export async function POST(request: Request, context: RouteContext) {
         ? { state: "EXISTING" as const, id: duplicate.id, status: duplicate.status }
         : { state: "IDEMPOTENCY_CONFLICT" as const };
     }
+
+    const reserved = await tx.permissionGrant.updateMany({
+      where: {
+        id: grant.id,
+        agentId,
+        status: "ACTIVE",
+        version: grant.version,
+        reservedUses: grant.reservedUses,
+      },
+      data: { reservedUses: { increment: 1 } },
+    });
+    if (reserved.count !== 1) throw new Error("GRANT_USAGE_RESERVATION_CONFLICT");
 
     const created = await tx.actionApproval.findUniqueOrThrow({
       where: { id: approvalId },
