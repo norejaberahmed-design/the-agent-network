@@ -3,6 +3,7 @@ import {
   createSafeApprovalPreview,
   digestApprovalEnvelope,
   digestApprovalPayload,
+  isApprovalPayloadReviewable,
 } from "./digest";
 
 describe("exact-payload approval digests", () => {
@@ -79,6 +80,20 @@ describe("exact-payload approval digests", () => {
     expect((preview.longText as string).length).toBe(500);
     expect((preview.values as unknown[])).toHaveLength(20);
     expect(JSON.stringify(preview)).toContain("[TRUNCATED]");
+  });
+
+  it("allows only complete owner-visible approval payload previews", () => {
+    expect(isApprovalPayloadReviewable({
+      message: "A complete message",
+      details: { quantity: 3, labels: ["one", "two"] },
+    })).toBe(true);
+    expect(isApprovalPayloadReviewable({ message: "hello", apiKey: "secret" })).toBe(false);
+    expect(isApprovalPayloadReviewable({ nested: { refreshToken: "secret" } })).toBe(false);
+    expect(isApprovalPayloadReviewable({ message: "x".repeat(501) })).toBe(false);
+    expect(isApprovalPayloadReviewable({ items: Array.from({ length: 21 }, (_, i) => i) })).toBe(false);
+    expect(isApprovalPayloadReviewable(Object.fromEntries(
+      Array.from({ length: 41 }, (_, i) => [`field${i}`, i]),
+    ))).toBe(false);
   });
 
   it("rejects non-JSON values and non-finite numbers", () => {
