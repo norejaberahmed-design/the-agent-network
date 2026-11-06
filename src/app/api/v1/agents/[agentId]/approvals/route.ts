@@ -8,10 +8,13 @@ import { isTrustedMutationRequest } from "@/lib/request-security";
 import { prisma } from "@/lib/prisma";
 import { getAgentAccess } from "@/modules/agents/access";
 import { canApproveAgentActions } from "@/modules/approvals/access";
+import { encryptApprovalPayload } from "@/modules/approvals/payload-vault";
+import { lockAgentRuntime, lockGrantRows } from "@/modules/runtime/locks";
 import {
   createSafeApprovalPreview,
   digestApprovalEnvelope,
   digestApprovalPayload,
+  isApprovalPayloadReviewable,
 } from "@/modules/approvals/digest";
 
 export const runtime = "nodejs";
@@ -103,6 +106,9 @@ export async function POST(request: Request, context: RouteContext) {
 
   let payloadDigest: string;
   let payloadPreview: ReturnType<typeof createSafeApprovalPreview>;
+  if (!isApprovalPayloadReviewable(parsed.data.payload)) {
+    return apiError("VALIDATION_FAILED", 422);
+  }
   try {
     payloadDigest = digestApprovalPayload(parsed.data.payload);
     payloadPreview = createSafeApprovalPreview(parsed.data.payload);
@@ -161,6 +167,74 @@ export async function POST(request: Request, context: RouteContext) {
         }));
     if (!requesterAuthorized) return { state: "FORBIDDEN" as const };
 
+    await lockAgentRuntime(tx, agentId);
+    const lockedAgent = await tx.agent.findUnique({
+      where: { id: agentId },
+      select: { status: true, ownerType: true, userOwnerId: true, organizationOwnerId: true },
+    });
+    if (
+      !lockedAgent ||
+      lockedAgent.status !== "ACTIVE" ||
+      lockedAgent.ownerType !== currentAgent.ownerType ||
+      lockedAgent.userOwnerId !== currentAgent.userOwnerId ||
+      lockedAgent.organizationOwnerId !== currentAgent.organizationOwnerId
+    ) return { state: "AGENT_INACTIVE" as const };
+
+    await lockGrantRows(tx, [parsed.data.grantId]);
+    const expiredApprovals = await tx.actionApproval.findMany({
+      where: {
+        grantId: parsed.data.grantId,
+        status: { in: ["PENDING", "APPROVED"] },
+        expiresAt: { lte: now },
+        usageReserved: true,
+      },
+      select: { id: true, version: true },
+    });
+    if (expiredApprovals.length > 0) {
+      const expired = await tx.actionApproval.updateMany({
+        where: {
+          id: { in: expiredApprovals.map((approval) => approval.id) },
+          status: { in: ["PENDING", "APPROVED"] },
+          usageReserved: true,
+          expiresAt: { lte: now },
+        },
+        data: {
+          status: "EXPIRED",
+          usageReserved: false,
+          decisionReason: "APPROVAL_EXPIRED",
+          version: { increment: 1 },
+        },
+      });
+      if (expired.count !== expiredApprovals.length) {
+        throw new Error("APPROVAL_EXPIRY_RESERVATION_CONFLICT");
+      }
+      const released = await tx.permissionGrant.updateMany({
+        where: {
+          id: parsed.data.grantId,
+          agentId,
+          reservedUses: { gte: expiredApprovals.length },
+        },
+        data: { reservedUses: { decrement: expiredApprovals.length } },
+      });
+      if (released.count !== 1) throw new Error("APPROVAL_USAGE_RESERVATION_MISSING");
+      for (const approval of expiredApprovals) {
+        await tx.auditEvent.create({
+          data: {
+            actorUserId: session.user.id,
+            agentId,
+            ownerType: currentAgent.ownerType,
+            ownerId,
+            action: "action_approval.expired",
+            targetType: "ActionApproval",
+            targetId: approval.id,
+            outcome: "FAILED",
+            policyVersion: String(approval.version + 1),
+            correlationId: randomUUID(),
+            metadata: { reason: "APPROVAL_EXPIRED" },
+          },
+        });
+      }
+    }
     const existing = await tx.actionApproval.findUnique({
       where: { idempotencyKey: parsed.data.idempotencyKey },
       select: {
@@ -201,6 +275,7 @@ export async function POST(request: Request, context: RouteContext) {
         expiresAt: true,
         maxUses: true,
         uses: true,
+        reservedUses: true,
         status: true,
         revokedAt: true,
       },
@@ -210,7 +285,7 @@ export async function POST(request: Request, context: RouteContext) {
       grant.status !== "ACTIVE" ||
       grant.revokedAt !== null ||
       grant.expiresAt <= now ||
-      (grant.maxUses !== null && grant.uses >= grant.maxUses)
+      (grant.maxUses !== null && grant.uses + grant.reservedUses >= grant.maxUses)
     ) {
       return { state: "GRANT_INACTIVE" as const };
     }
@@ -239,6 +314,17 @@ export async function POST(request: Request, context: RouteContext) {
       expiresAt,
       idempotencyKey: parsed.data.idempotencyKey,
     });
+    let encryptedPayload: ReturnType<typeof encryptApprovalPayload>;
+    try {
+      encryptedPayload = encryptApprovalPayload(parsed.data.payload, {
+        approvalId,
+        agentId,
+        grantId: grant.id,
+        payloadDigest,
+      });
+    } catch {
+      return { state: "PAYLOAD_VAULT_UNAVAILABLE" as const };
+    }
 
     const inserted = await tx.actionApproval.createMany({
       data: [{
@@ -254,6 +340,8 @@ export async function POST(request: Request, context: RouteContext) {
         payloadDigest,
         approvalDigest,
         payloadPreview: payloadPreview as Prisma.InputJsonValue,
+        ...encryptedPayload,
+        usageReserved: true,
         idempotencyKey: parsed.data.idempotencyKey,
         expiresAt,
       }],
@@ -288,6 +376,18 @@ export async function POST(request: Request, context: RouteContext) {
         ? { state: "EXISTING" as const, id: duplicate.id, status: duplicate.status }
         : { state: "IDEMPOTENCY_CONFLICT" as const };
     }
+
+    const reserved = await tx.permissionGrant.updateMany({
+      where: {
+        id: grant.id,
+        agentId,
+        status: "ACTIVE",
+        version: grant.version,
+        reservedUses: grant.reservedUses,
+      },
+      data: { reservedUses: { increment: 1 } },
+    });
+    if (reserved.count !== 1) throw new Error("GRANT_USAGE_RESERVATION_CONFLICT");
 
     const created = await tx.actionApproval.findUniqueOrThrow({
       where: { id: approvalId },
@@ -335,6 +435,7 @@ export async function POST(request: Request, context: RouteContext) {
   if (result.state === "AGENT_INACTIVE") return apiError("CONFLICT", 409);
   if (result.state === "GRANT_INACTIVE") return apiError("CONFLICT", 409);
   if (result.state === "GRANT_SCOPE_DENIED") return apiError("FORBIDDEN", 403);
+  if (result.state === "PAYLOAD_VAULT_UNAVAILABLE") return apiError("SERVICE_UNAVAILABLE", 503);
 
   return Response.json(
     result.state === "CREATED"

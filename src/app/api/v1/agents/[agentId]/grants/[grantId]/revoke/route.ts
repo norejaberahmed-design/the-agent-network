@@ -69,7 +69,7 @@ export async function POST(request: Request, context: RouteContext) {
         grantId,
         status: { in: ["PENDING", "APPROVED"] },
       },
-      select: { id: true, status: true, version: true },
+      select: { id: true, status: true, version: true, usageReserved: true },
     });
     const cancelledApprovals = await tx.actionApproval.updateMany({
       where: {
@@ -78,6 +78,7 @@ export async function POST(request: Request, context: RouteContext) {
       },
       data: {
         status: "CANCELLED",
+        usageReserved: false,
         cancelledAt: new Date(),
         decisionReason: "GRANT_REVOKED",
         version: { increment: 1 },
@@ -85,6 +86,14 @@ export async function POST(request: Request, context: RouteContext) {
     });
     if (cancelledApprovals.count !== affectedApprovals.length) {
       throw new Error("APPROVAL_REVOCATION_CONFLICT");
+    }
+    const reservedApprovalCount = affectedApprovals.filter((approval) => approval.usageReserved).length;
+    if (reservedApprovalCount > 0) {
+      const released = await tx.permissionGrant.updateMany({
+        where: { id: grantId, agentId, reservedUses: { gte: reservedApprovalCount } },
+        data: { reservedUses: { decrement: reservedApprovalCount } },
+      });
+      if (released.count !== 1) throw new Error("APPROVAL_USAGE_RESERVATION_MISSING");
     }
     for (const approval of affectedApprovals) {
       await tx.auditEvent.create({

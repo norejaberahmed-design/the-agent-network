@@ -156,7 +156,14 @@ export async function PATCH(request: Request, context: RouteContext) {
         where: { agentId, status: { in: ["QUEUED", "PLANNING"] } },
         select: { id: true, grantIds: true },
       });
-      await lockGrantRows(tx, runs.flatMap((run) => run.grantIds));
+      const approvals = await tx.actionApproval.findMany({
+        where: { agentId, status: { in: ["PENDING", "APPROVED"] } },
+        select: { id: true, grantId: true, usageReserved: true, version: true },
+      });
+      await lockGrantRows(tx, [
+        ...runs.flatMap((run) => run.grantIds),
+        ...approvals.map((approval) => approval.grantId),
+      ]);
       for (const run of runs) {
         const cancelled = await tx.agentRun.updateMany({
           where: { id: run.id, agentId, status: { in: ["QUEUED", "PLANNING"] } },
@@ -193,6 +200,55 @@ export async function PATCH(request: Request, context: RouteContext) {
             metadata: { reason: "AGENT_NOT_ACTIVE", releasedGrantReservations: run.grantIds.length },
           },
         });
+      }
+      if (approvals.length > 0) {
+        const cancelled = await tx.actionApproval.updateMany({
+          where: {
+            id: { in: approvals.map((approval) => approval.id) },
+            status: { in: ["PENDING", "APPROVED"] },
+          },
+          data: {
+            status: "CANCELLED",
+            usageReserved: false,
+            cancelledAt: new Date(),
+            decisionReason: "AGENT_NOT_ACTIVE",
+            version: { increment: 1 },
+          },
+        });
+        if (cancelled.count !== approvals.length) {
+          throw new Error("APPROVAL_LIFECYCLE_CANCELLATION_CONFLICT");
+        }
+        const reservationsByGrant = new Map<string, number>();
+        for (const approval of approvals) {
+          if (approval.usageReserved) {
+            reservationsByGrant.set(
+              approval.grantId,
+              (reservationsByGrant.get(approval.grantId) ?? 0) + 1,
+            );
+          }
+          await tx.auditEvent.create({
+            data: {
+              actorUserId: session.user.id,
+              agentId,
+              ownerType: agent.ownerType,
+              ownerId,
+              action: "action_approval.cancelled",
+              targetType: "ActionApproval",
+              targetId: approval.id,
+              outcome: "DENIED",
+              policyVersion: String(approval.version + 1),
+              correlationId,
+              metadata: { reason: "AGENT_NOT_ACTIVE" },
+            },
+          });
+        }
+        for (const [grantId, count] of reservationsByGrant) {
+          const released = await tx.permissionGrant.updateMany({
+            where: { id: grantId, agentId, reservedUses: { gte: count } },
+            data: { reservedUses: { decrement: count } },
+          });
+          if (released.count !== 1) throw new Error("APPROVAL_USAGE_RESERVATION_MISSING");
+        }
       }
     }
     await tx.auditEvent.create({
