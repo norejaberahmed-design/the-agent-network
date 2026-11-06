@@ -14,3 +14,6 @@ ALTER TABLE "ActionApproval"
     OR
     ("encryptedPayload" IS NOT NULL AND "payloadNonce" IS NOT NULL AND "payloadAuthTag" IS NOT NULL AND "payloadKeyVersion" = 1)
   );
+
+ALTER TABLE "ActionApproval"
+  ADD COLUMN "usageReserved" BOOLEAN NOT NULL DEFAULT FALSE;
