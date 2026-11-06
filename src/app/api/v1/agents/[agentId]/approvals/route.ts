@@ -14,6 +14,7 @@ import {
   createSafeApprovalPreview,
   digestApprovalEnvelope,
   digestApprovalPayload,
+  isApprovalPayloadReviewable,
 } from "@/modules/approvals/digest";
 
 export const runtime = "nodejs";
@@ -105,6 +106,9 @@ export async function POST(request: Request, context: RouteContext) {
 
   let payloadDigest: string;
   let payloadPreview: ReturnType<typeof createSafeApprovalPreview>;
+  if (!isApprovalPayloadReviewable(parsed.data.payload)) {
+    return apiError("VALIDATION_FAILED", 422);
+  }
   try {
     payloadDigest = digestApprovalPayload(parsed.data.payload);
     payloadPreview = createSafeApprovalPreview(parsed.data.payload);
