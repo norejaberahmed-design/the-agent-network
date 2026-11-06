@@ -351,6 +351,10 @@ model ActionApproval {
   payloadDigest   String         @db.VarChar(64)
   approvalDigest  String         @db.VarChar(64)
   payloadPreview  Json
+  encryptedPayload String? @db.Text
+  payloadNonce    String? @db.VarChar(32)
+  payloadAuthTag  String? @db.VarChar(32)
+  payloadKeyVersion Int?
   idempotencyKey  String         @unique
   status          ApprovalStatus @default(PENDING)
   expiresAt       DateTime
