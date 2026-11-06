@@ -355,6 +355,7 @@ model ActionApproval {
   payloadNonce    String? @db.VarChar(32)
   payloadAuthTag  String? @db.VarChar(32)
   payloadKeyVersion Int?
+  usageReserved   Boolean        @default(false)
   idempotencyKey  String         @unique
   status          ApprovalStatus @default(PENDING)
   expiresAt       DateTime
