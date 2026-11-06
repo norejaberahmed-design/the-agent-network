@@ -9,7 +9,7 @@ import { prisma } from "@/lib/prisma";
 import { getAgentAccess } from "@/modules/agents/access";
 import { canApproveAgentActions } from "@/modules/approvals/access";
 import { encryptApprovalPayload } from "@/modules/approvals/payload-vault";
-import { lockGrantRows } from "@/modules/runtime/locks";
+import { lockAgentRuntime, lockGrantRows } from "@/modules/runtime/locks";
 import {
   createSafeApprovalPreview,
   digestApprovalEnvelope,
@@ -163,6 +163,20 @@ export async function POST(request: Request, context: RouteContext) {
         }));
     if (!requesterAuthorized) return { state: "FORBIDDEN" as const };
 
+    await lockAgentRuntime(tx, agentId);
+    const lockedAgent = await tx.agent.findUnique({
+      where: { id: agentId },
+      select: { status: true, ownerType: true, userOwnerId: true, organizationOwnerId: true },
+    });
+    if (
+      !lockedAgent ||
+      lockedAgent.status !== "ACTIVE" ||
+      lockedAgent.ownerType !== currentAgent.ownerType ||
+      lockedAgent.userOwnerId !== currentAgent.userOwnerId ||
+      lockedAgent.organizationOwnerId !== currentAgent.organizationOwnerId
+    ) return { state: "AGENT_INACTIVE" as const };
+
+    await lockGrantRows(tx, [parsed.data.grantId]);
     const existing = await tx.actionApproval.findUnique({
       where: { idempotencyKey: parsed.data.idempotencyKey },
       select: {
@@ -192,7 +206,6 @@ export async function POST(request: Request, context: RouteContext) {
         : { state: "IDEMPOTENCY_CONFLICT" as const };
     }
 
-    await lockGrantRows(tx, [parsed.data.grantId]);
     const grant = await tx.permissionGrant.findFirst({
       where: { id: parsed.data.grantId, agentId },
       select: {
