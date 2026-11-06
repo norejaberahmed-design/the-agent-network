@@ -75,6 +75,10 @@ export async function PATCH(request: Request, context: RouteContext) {
         recipient: true,
         requestedDataScope: true,
         payloadDigest: true,
+        encryptedPayload: true,
+        payloadNonce: true,
+        payloadAuthTag: true,
+        payloadKeyVersion: true,
         usageReserved: true,
         approvalDigest: true,
         idempotencyKey: true,
@@ -244,6 +248,17 @@ export async function PATCH(request: Request, context: RouteContext) {
       return expireOrCancel(
         "CANCELLED",
         "APPROVAL_DIGEST_MISMATCH",
+        "action_approval.cancelled",
+      );
+    }
+
+    if (
+      parsed.data.decision === "APPROVE" &&
+      (!approval.encryptedPayload || !approval.payloadNonce || !approval.payloadAuthTag || approval.payloadKeyVersion !== 1)
+    ) {
+      return expireOrCancel(
+        "CANCELLED",
+        "APPROVAL_PAYLOAD_UNAVAILABLE",
         "action_approval.cancelled",
       );
     }
