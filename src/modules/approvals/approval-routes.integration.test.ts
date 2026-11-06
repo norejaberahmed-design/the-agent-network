@@ -90,6 +90,7 @@ async function submitApproval(grantId: string, idempotencyKey: string, payload: 
 
 suite("exact-payload action approval workflow (PostgreSQL integration)", () => {
   beforeAll(async () => {
+    process.env.APPROVAL_PAYLOAD_ENCRYPTION_KEY = Buffer.alloc(32, 7).toString("base64");
     await prisma.user.createMany({
       data: [
         { id: ownerId, name: "Approval Owner", email: `approval-owner-${suffix}@example.invalid` },
@@ -227,6 +228,10 @@ suite("exact-payload action approval workflow (PostgreSQL integration)", () => {
       where: { id: firstPayload.data.id },
     });
     expect(stored.payloadDigest).toBe(firstPayload.data.payloadDigest);
+    expect(stored.encryptedPayload).toBeTruthy();
+    expect(stored.payloadNonce).toBeTruthy();
+    expect(stored.payloadAuthTag).toBeTruthy();
+    expect(stored.payloadKeyVersion).toBe(1);
     expect(stored.approvalDigest).toMatch(/^[a-f0-9]{64}$/);
     expect(stored.status).toBe("PENDING");
     await expect(
