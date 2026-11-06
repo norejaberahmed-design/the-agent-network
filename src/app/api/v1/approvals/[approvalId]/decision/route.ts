@@ -75,6 +75,7 @@ export async function PATCH(request: Request, context: RouteContext) {
         recipient: true,
         requestedDataScope: true,
         payloadDigest: true,
+        usageReserved: true,
         approvalDigest: true,
         idempotencyKey: true,
         status: true,
@@ -100,6 +101,7 @@ export async function PATCH(request: Request, context: RouteContext) {
             dataScope: true,
             maxUses: true,
             uses: true,
+            reservedUses: true,
           },
         },
       },
@@ -149,11 +151,20 @@ export async function PATCH(request: Request, context: RouteContext) {
         },
         data: {
           status,
+          usageReserved: false,
           decisionReason: reason,
           version: { increment: 1 },
         },
       });
       if (changed.count !== 1) return { state: "CONFLICT" as const };
+
+      if (changed.count === 1 && approval.usageReserved) {
+        const released = await tx.permissionGrant.updateMany({
+          where: { id: approval.grantId, agentId: approval.agentId, reservedUses: { gt: 0 } },
+          data: { reservedUses: { decrement: 1 } },
+        });
+        if (released.count !== 1) throw new Error("APPROVAL_USAGE_RESERVATION_MISSING");
+      }
 
       await tx.auditEvent.create({
         data: {
@@ -196,7 +207,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       grant.status === "ACTIVE" &&
       grant.revokedAt === null &&
       grant.expiresAt > now &&
-      (grant.maxUses === null || grant.uses < grant.maxUses) &&
+      (grant.maxUses === null || grant.uses + grant.reservedUses <= grant.maxUses) &&
       grant.actionScope.includes(approval.actionType) &&
       grant.targetScope.includes(approval.recipient) &&
       approval.requestedDataScope.every((scope) => grant.dataScope.includes(scope));
@@ -247,6 +258,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       },
       data: {
         status: nextStatus,
+        usageReserved: nextStatus === "APPROVED",
         approverUserId: session.user.id,
         approvedAt: nextStatus === "APPROVED" ? now : null,
         rejectedAt: nextStatus === "REJECTED" ? now : null,
@@ -255,6 +267,13 @@ export async function PATCH(request: Request, context: RouteContext) {
       },
     });
     if (updated.count !== 1) return { state: "CONFLICT" as const };
+    if (nextStatus === "REJECTED" && approval.usageReserved) {
+      const released = await tx.permissionGrant.updateMany({
+        where: { id: approval.grantId, agentId: approval.agentId, reservedUses: { gt: 0 } },
+        data: { reservedUses: { decrement: 1 } },
+      });
+      if (released.count !== 1) throw new Error("APPROVAL_USAGE_RESERVATION_MISSING");
+    }
 
     await tx.auditEvent.create({
       data: {
